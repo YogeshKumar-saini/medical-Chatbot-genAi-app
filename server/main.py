@@ -19,7 +19,7 @@ def health_check():
 
 
 def main():
-    port = int(os.environ.get("PORT", 8000))  # Use Render's PORT or default to 8000 locally
+    port = int(os.environ.get("PORT", 8080))  # Use Render's PORT or default to 8000 locally
     uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
