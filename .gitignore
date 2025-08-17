@@ -1,0 +1,33 @@
+/node_modules
+/.env
+# .DS_Store
+# /.vscode/
+/genai_env
+.env.local
+
+# /user_memory
+# /uploaded_docs
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+env/
+venv/
+.venv/
+ml_env/
+python_env/
+
+# Environment variables
+.env
+*.env
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
