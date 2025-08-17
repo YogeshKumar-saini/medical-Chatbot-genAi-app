@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
+import os
 
 from auth.routes import router as auth_router
 from docs.routes import router as docs_router
@@ -23,6 +24,7 @@ def health_check():
 
 
 
-def main():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
 
+def main():
+    port = int(os.environ.get("PORT", 8000))  # Use Render's PORT or default to 8000 locally
+    uvicorn.run(app, host="0.0.0.0", port=port)
