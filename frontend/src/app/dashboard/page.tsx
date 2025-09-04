@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   MessageSquare,
@@ -41,11 +41,7 @@ export default function DashboardPage() {
     roleDistribution: { patient: 0, doctor: 0, nurse: 0, admin: 0, other: 0 }
   });
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = () => {
+  const checkAuth = useCallback(() => {
     if (!apiClient.isAuthenticated()) {
       router.push('/auth/login');
       return;
@@ -62,7 +58,11 @@ export default function DashboardPage() {
 
     // Load stats for all users (different data based on role)
     loadStats(currentUser.role);
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const loadStats = async (userRole: string = 'patient') => {
     try {
@@ -248,7 +248,7 @@ export default function DashboardPage() {
 // Functional components for different sections
 
 function DocumentsInterface() {
-  const [documents, setDocuments] = useState([
+  const documents = [
     {
       id: '1',
       name: 'Medical Guidelines 2024.pdf',
@@ -273,7 +273,7 @@ function DocumentsInterface() {
       role: 'patient',
       chunks: 67
     }
-  ]);
+  ];
 
   return (
     <div className="space-y-6">
@@ -336,7 +336,7 @@ function DocumentsInterface() {
 }
 
 function AnalyticsInterface() {
-  const [analytics, setAnalytics] = useState({
+  const analytics = {
     totalQueries: 247,
     documentBasedResponses: 89,
     generalKnowledgeResponses: 158,
@@ -348,7 +348,7 @@ function AnalyticsInterface() {
       { topic: 'Emergency Care', queries: 21 },
       { topic: 'Mental Health', queries: 18 }
     ]
-  });
+  };
 
   return (
     <div className="space-y-6">

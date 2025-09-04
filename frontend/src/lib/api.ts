@@ -163,7 +163,7 @@ class ApiClient {
         '/api/v1/chat/suggestions'
       );
       return response.data;
-    } catch (error: any) {
+    } catch {
       // Return empty suggestions on error
       return { suggested_queries: [], personalized: false };
     }
@@ -200,7 +200,7 @@ class ApiClient {
     try {
       const response: AxiosResponse<HealthResponse> = await this.client.get('/health');
       return response.data;
-    } catch (error: any) {
+    } catch {
       throw new Error('Health check failed');
     }
   }
