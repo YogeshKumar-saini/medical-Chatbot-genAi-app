@@ -185,7 +185,7 @@ class OptimizedVectorStore:
                 # Save uploaded file
                 file_path = UPLOAD_DIR / file.filename
                 with open(file_path, "wb") as f:
-                    content = await asyncio.to_thread(file.read)
+                    content = await file.read()
                     f.write(content)
                 
                 # Check if file was already processed
@@ -221,7 +221,7 @@ class OptimizedVectorStore:
                 
                 # Upsert to Pinecone
                 await self._upsert_chunks_batch(processed_chunks)
-                
+
                 # Update metadata cache
                 metadata_cache[cache_key] = {
                     "hash": file_hash,
@@ -230,14 +230,14 @@ class OptimizedVectorStore:
                     "chunks_count": len(processed_chunks),
                     "processed_at": time.time()
                 }
-                
+
                 results["processed"].append({
                     "filename": file.filename,
                     "chunks": len(processed_chunks),
                     "doc_id": doc_id
                 })
-                
-                logger.info(f"Successfully processed {file.filename}")
+
+                logger.info(f"Successfully processed {file.filename} - {len(processed_chunks)} chunks uploaded to Pinecone")
                 
             except Exception as e:
                 error_msg = f"{file.filename}: {str(e)}"

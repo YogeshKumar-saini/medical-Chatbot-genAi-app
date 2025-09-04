@@ -188,7 +188,7 @@ async def api_info():
         "endpoints": {
             "authentication": "/api/v1/auth/",
             "chat": "/api/v1/chat/",
-            "documents": "/api/v1/",
+            "documents": "/api/v1/docs/",
             "health": "/health"
         },
         "features": [
@@ -200,6 +200,22 @@ async def api_info():
             "Real-time streaming responses"
         ]
     }
+
+@app.get("/api/v1/vector/stats")
+async def vector_stats():
+    """Get vector store statistics"""
+    try:
+        from docs.vectorstore import vector_store
+        stats = await vector_store.get_index_stats()
+        return {
+            "status": "success",
+            "stats": stats
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
 def main():
     host = os.getenv("HOST", "0.0.0.0")

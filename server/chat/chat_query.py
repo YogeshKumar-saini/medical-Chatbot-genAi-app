@@ -142,32 +142,46 @@ async def search_documents(query: str, user_role: str, top_k: int = 5) -> tuple:
         # Get embedding for query
         embedding = await embed_model.embed_query(query)
         
-        # Search with metadata filtering
+        # Search with metadata filtering - try role-specific first, then fallback to all
         results = await asyncio.to_thread(
             index.query,
             vector=embedding,
-            top_k=top_k * 2,  # Get more results to filter
+            top_k=top_k * 3,  # Get more results to filter
             include_metadata=True,
             filter={"role": user_role}  # Use Pinecone's native filtering
         )
-        
+
         filtered_contexts = []
         sources = set()
-        
-        # Process results with score threshold
+
+        # If no results with role filter, try without filter
+        if not results.get("matches"):
+            logger.info(f"No results found for role {user_role}, trying without role filter")
+            results = await asyncio.to_thread(
+                index.query,
+                vector=embedding,
+                top_k=top_k * 3,
+                include_metadata=True
+            )
+
+        # Process results with adjusted score threshold
+        logger.info(f"Found {len(results.get('matches', []))} matches for query: {query[:50]}...")
         for match in results.get("matches", []):
-            if match.get("score", 0) > 0.75:  # Higher threshold for relevance
+            score = match.get("score", 0)
+            logger.info(f"Match score: {score}")
+            if score > 0.6:  # Lower threshold for better recall
                 metadata = match.get("metadata", {})
                 text = metadata.get("text", "")
                 source = metadata.get("source", "Unknown")
-                
+
                 if text:
                     filtered_contexts.append({
                         "text": text,
-                        "score": match["score"],
+                        "score": score,
                         "source": source
                     })
                     sources.add(source)
+                    logger.info(f"Added context from {source} with score {score}")
         
         # Sort by relevance score
         filtered_contexts.sort(key=lambda x: x["score"], reverse=True)
@@ -198,18 +212,19 @@ async def answer_query(query: str, user_role: str) -> Dict:
         
         if contexts:
             # Document-based response
+            logger.info(f"Using {len(contexts)} document contexts for response")
             context_text = "\n\n".join([
                 f"Source: {ctx['source']}\nContent: {ctx['text']}"
                 for ctx in contexts
             ])
-            
+
             prompt = DOCUMENT_PROMPT.format(
                 question=query,
                 context=context_text
             )
-            
+
             answer = await llm.generate(prompt, max_tokens=800)
-            
+
             response = {
                 "answer": answer,
                 "sources": sources,
@@ -218,16 +233,17 @@ async def answer_query(query: str, user_role: str) -> Dict:
             }
         else:
             # General knowledge fallback
+            logger.info(f"No document contexts found, using general knowledge for query: {query[:50]}...")
             prompt = GENERAL_PROMPT.format(
                 question=query,
                 role=user_role
             )
-            
+
             answer = await llm.generate(prompt, max_tokens=600)
-            
+
             # Add medical disclaimer
             disclaimer = "\n\n⚠️ **Medical Disclaimer**: This information is for educational purposes only and should not replace professional medical advice. Always consult with qualified healthcare providers for personalized medical guidance."
-            
+
             response = {
                 "answer": answer + disclaimer,
                 "sources": ["General Medical Knowledge"],

@@ -18,10 +18,13 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
 
 @router.post("/signup")
 def signup(req: SignupRequest):
-    if users_collection.find_one({"username": req.username}):
+    # Convert username to lowercase for consistency
+    username_lower = req.username.lower()
+
+    if users_collection.find_one({"username": username_lower}):
         raise HTTPException(status_code=400, detail="User already exists")
     users_collection.insert_one({
-        "username": req.username,
+        "username": username_lower,
         "password": hash_password(req.password),
         "role": req.role
     })
