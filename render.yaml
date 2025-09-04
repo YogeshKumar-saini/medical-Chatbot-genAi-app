@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: medical-chatbot-backend
+    runtime: python
+    buildCommand: pip install -r server/requirements.txt
+    startCommand: cd server && python main.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_ENV
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: appName
+        sync: false
