@@ -109,9 +109,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Include routers
-    app.include_router(auth_router)
-    app.include_router(docs_router)
-    app.include_router(chat_router)
+app.include_router(auth_router, prefix="/api/v1/auth")
+app.include_router(docs_router, prefix="/api/v1/docs")
+app.include_router(chat_router, prefix="/api/v1/chat")
 
 @app.get("/health")
 async def health_check_endpoint():

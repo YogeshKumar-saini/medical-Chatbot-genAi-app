@@ -12,7 +12,7 @@ from chat.chat_query import answer_query, get_suggested_queries, health_check
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/chat", tags=["Chat"])
+router = APIRouter(tags=["Chat"])
 
 # Initialize session manager and rate limiter
 

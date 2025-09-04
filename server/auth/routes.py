@@ -5,12 +5,12 @@ from .models import SignupRequest
 from .hash_utils import hash_password, verify_password
 from config.db import users_collection
 
-router = APIRouter(prefix="/auth")
+router = APIRouter()
 security = HTTPBasic()
 
 
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    user = users_collection.find_one({"username": credentials.username})
+    user = users_collection.find_one({"username": credentials.username.lower()})
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"username": user["username"], "role": user["role"]}

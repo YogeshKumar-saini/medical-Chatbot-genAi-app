@@ -269,8 +269,6 @@ async def signup(request: Request, signup_data: SignupRequest):
             "username": signup_data.username,
             "password": hashed_password,
             "role": signup_data.role,
-            "email": signup_data.email,
-            "full_name": signup_data.full_name,
             "created_at": datetime.utcnow(),
             "last_login": None,
             "is_active": True

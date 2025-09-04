@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional
 import logging
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -127,6 +128,32 @@ class APIClient:
             )
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            # Handle validation errors specifically
+            if response.status_code == 422:
+                try:
+                    error_data = response.json()
+                    if "detail" in error_data:
+                        if isinstance(error_data["detail"], list):
+                            # Pydantic validation errors
+                            error_messages = []
+                            for error in error_data["detail"]:
+                                field = error.get("loc", ["unknown"])[-1]
+                                msg = error.get("msg", "Validation error")
+                                error_messages.append(f"{field}: {msg}")
+                            raise Exception("Validation failed:\n" + "\n".join(error_messages))
+                        else:
+                            raise Exception(f"Signup failed: {error_data['detail']}")
+                except (ValueError, KeyError):
+                    pass
+            elif response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    if "detail" in error_data:
+                        raise Exception(f"Signup failed: {error_data['detail']}")
+                except (ValueError, KeyError):
+                    pass
+            raise Exception(f"Signup failed: {str(e)}")
         except Exception as e:
             raise Exception(f"Signup failed: {str(e)}")
     
@@ -258,17 +285,6 @@ def render_auth_interface():
                         help="At least 8 characters with letters and numbers"
                     )
                 
-                with col_right:
-                    full_name = st.text_input(
-                        "📝 Full Name", 
-                        placeholder="Your full name (optional)",
-                        help="Optional: Your display name"
-                    )
-                    email = st.text_input(
-                        "📧 Email", 
-                        placeholder="email@example.com (optional)",
-                        help="Optional: For password recovery"
-                    )
                 
                 new_role = st.selectbox(
                     "👨‍⚕️ Your Role", 
@@ -281,21 +297,40 @@ def render_auth_interface():
                     submitted = st.form_submit_button("✨ Create Account", use_container_width=True)
                 
                 if submitted and new_user and new_pass:
-                    with st.spinner("🔧 Creating your account..."):
-                        try:
-                            signup_data = {
-                                "username": new_user,
-                                "password": new_pass,
-                                "role": new_role,
-                                "full_name": full_name if full_name else None,
-                                "email": email if email else None
-                            }
-                            
-                            result = api_client.signup(signup_data)
-                            st.success("🎉 Account created successfully! Please sign in.")
-                            
-                        except Exception as e:
-                            st.error(f"❌ {str(e)}")
+                    # Client-side validation
+                    validation_errors = []
+
+                    # Username validation
+                    if len(new_user) < 3 or len(new_user) > 50:
+                        validation_errors.append("Username must be 3-50 characters long")
+                    if not re.match(r'^[a-zA-Z0-9_]+$', new_user):
+                        validation_errors.append("Username can only contain letters, numbers, and underscores")
+
+                    # Password validation
+                    if len(new_pass) < 8:
+                        validation_errors.append("Password must be at least 8 characters long")
+                    if not re.search(r'[A-Za-z]', new_pass):
+                        validation_errors.append("Password must contain at least one letter")
+                    if not re.search(r'\d', new_pass):
+                        validation_errors.append("Password must contain at least one number")
+
+                    if validation_errors:
+                        for error in validation_errors:
+                            st.error(f"❌ {error}")
+                    else:
+                        with st.spinner("🔧 Creating your account..."):
+                            try:
+                                signup_data = {
+                                    "username": new_user,
+                                    "password": new_pass,
+                                    "role": new_role
+                                }
+
+                                result = api_client.signup(signup_data)
+                                st.success("🎉 Account created successfully! Please sign in.")
+
+                            except Exception as e:
+                                st.error(f"❌ {str(e)}")
         
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -633,3 +668,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
