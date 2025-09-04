@@ -376,30 +376,50 @@ def chat_interface():
     </div>
     """, unsafe_allow_html=True)
     
+    # Fetch suggested queries from backend
+    try:
+        suggestions_res = requests.get(f"{API_URL}/chat/suggestions")
+        if suggestions_res.status_code == 200:
+            suggestions = suggestions_res.json().get("suggested_queries", [])
+        else:
+            suggestions = []
+    except Exception:
+        suggestions = []
+
+
+    # Display suggested queries as a dropdown (selectbox)
+    selected_query = st.session_state.get("selected_query", "")
+    if suggestions:
+        st.markdown("#### 📝 Select a Medical Question")
+        selected_query = st.selectbox(
+            "Choose a query:",
+            [""] + suggestions,
+            index=([""] + suggestions).index(selected_query) if selected_query in suggestions else 0,
+            help="Pick a question to auto-fill the chat box"
+        )
+        st.session_state.selected_query = selected_query
+    else:
+        st.warning("No suggested queries found. Please check if the backend /chat/suggestions endpoint is running and accessible.")
+
     # Chat input
     with st.form("chat_form", clear_on_submit=True):
         msg = st.text_input(
             "Your question:",
+            value=selected_query if selected_query else "",
             placeholder="Ask about symptoms, treatments, protocols, or medical procedures...",
             help="Type your Medical-related question here"
         )
-        
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             submitted = st.form_submit_button("🚀 Send Message", use_container_width=True)
-        
         if submitted and msg.strip():
             with st.spinner("🤔 AI is thinking..."):
                 try:
-                    res = requests.post(f"{API_URL}/chat", data={"message": msg}, auth=get_auth())
+                    res = requests.post(f"{API_URL}/chat/chat", data={"message": msg}, auth=get_auth())
                     if res.status_code == 200:
                         reply = res.json()
-                        
-                        # Display answer
                         st.markdown("### 💡 Answer:")
                         st.success(reply["answer"])
-                        
-                        # Display sources if available
                         if reply.get("sources"):
                             st.markdown("### 📚 Sources:")
                             for i, src in enumerate(reply["sources"], 1):
@@ -412,9 +432,9 @@ def chat_interface():
                         st.error(f" {res.json().get('detail', 'Something went wrong')}")
                 except Exception as e:
                     st.error(" Connection error. Please try again.")
+            st.session_state.selected_query = ""
         elif submitted:
             st.warning("⚠️ Please enter a question")
-    
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Main application flow

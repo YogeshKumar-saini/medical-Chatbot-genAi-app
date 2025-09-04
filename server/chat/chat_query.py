@@ -41,6 +41,18 @@ You are a helpful healthcare assistant. Answer the following question
 """)
 
 rag_chain=prompt | llm
+def get_suggested_queries():
+    """
+    Returns a list of 5 suggested queries for the user to select from.
+    Modify this list as needed for your application.
+    """
+    return [
+        "What are the symptoms of diabetes?",
+        "How can I manage high blood pressure?",
+        "What are common treatments for asthma?",
+        "How do I prevent heart disease?",
+        "What should I do if I have a fever?"
+    ]
 
 
 async def answer_query(query:str,user_role:str):
