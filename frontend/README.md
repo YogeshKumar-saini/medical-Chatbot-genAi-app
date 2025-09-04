@@ -31,7 +31,7 @@ A modern, professional medical AI assistant built with Next.js, TypeScript, and 
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:YogeshKumar-saini/medical-Chatbot-genAi-app.git
    cd frontend
    ```
 
