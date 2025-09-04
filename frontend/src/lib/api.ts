@@ -47,7 +47,8 @@ class ApiClient {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://medical-chatbot-genai-app.onrender.com';
+    // Use the correct production API URL
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://medical-chatbot-genai-app-1.onrender.com';
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
@@ -55,6 +56,11 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
     });
+
+    // Log the API URL for debugging (remove in production)
+    if (typeof window !== 'undefined') {
+      console.log('API Base URL:', this.baseURL);
+    }
 
     // Request interceptor to add auth headers
     this.client.interceptors.request.use(
@@ -82,11 +88,19 @@ class ApiClient {
       (error) => {
         if (error.response?.status === 401) {
           // Clear auth data on unauthorized
-          localStorage.removeItem('username');
-          localStorage.removeItem('password');
-          localStorage.removeItem('role');
-          window.location.href = '/auth/login';
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('username');
+            localStorage.removeItem('password');
+            localStorage.removeItem('role');
+            window.location.href = '/auth/login';
+          }
         }
+
+        // Log error for debugging
+        if (typeof window !== 'undefined') {
+          console.error('API Error:', error.response?.data || error.message);
+        }
+
         return Promise.reject(error);
       }
     );

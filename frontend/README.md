@@ -1,74 +1,33 @@
-# MediAI Pro - Next.js Frontend
+# MediAI Pro - Medical AI Assistant Frontend
 
-A modern, professional Next.js frontend for the MediAI Pro medical AI assistant system.
+A modern, professional medical AI assistant built with Next.js, TypeScript, and Tailwind CSS.
 
-## Features
+## 🚀 Features
 
-### 🎨 Professional UI Design
-- Modern, clean interface with Tailwind CSS
-- Responsive design for all devices
-- Professional medical-themed color scheme
-- Smooth animations and transitions
+- **Beautiful Professional UI** - Modern design with responsive layout
+- **Real-time AI Chat** - Interactive medical Q&A with document search
+- **Role-based Authentication** - Patient, Doctor, Nurse, Admin access levels
+- **Document Management** - Upload and manage medical documents
+- **Analytics Dashboard** - Usage statistics and performance metrics
+- **Data Loading Indicators** - Real-time progress tracking
+- **Chunking Display** - Document processing visualization
 
-### 🔐 Authentication System
-- Secure login and signup pages
-- Role-based access control (Patient, Doctor, Nurse, Admin)
-- JWT token management
-- Automatic session handling
+## 🛠️ Tech Stack
 
-### 💬 Advanced Chat Interface
-- Real-time AI chat with medical assistant
-- Streaming responses for better UX
-- Message history with timestamps
-- Source citations for medical information
-- Loading indicators and chunking display
-- Personalized suggestions based on user role
-
-### 📚 Document Management
-- Admin-only document upload interface
-- PDF file validation and processing
-- Progress tracking during upload
-- Role-based access control for documents
-- File size and type validation
-
-### 📊 Dashboard & Analytics
-- Role-based navigation and features
-- Real-time statistics display
-- Document count and chunk tracking
-- User activity monitoring
-- System health indicators
-
-### 🛡️ Error Handling & Reliability
-- Comprehensive error boundaries
-- Toast notifications for user feedback
-- Graceful fallback UI components
-- Network error recovery
-- Input validation and sanitization
-
-### 📱 Mobile-First Design
-- Fully responsive layout
-- Touch-friendly interface
-- Optimized for mobile devices
-- Progressive web app ready
-
-## Tech Stack
-
-- **Framework**: Next.js 14 with App Router
+- **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **HTTP Client**: Axios
-- **State Management**: React Hooks
-- **Build Tool**: Next.js CLI
+- **Deployment**: Vercel
 
-## Getting Started
+## 📋 Prerequisites
 
-### Prerequisites
 - Node.js 18+
 - npm or yarn
-- Backend API running (see server README)
+- Backend API server running
 
-### Installation
+## 🚀 Local Development
 
 1. **Clone the repository**
    ```bash
@@ -81,10 +40,14 @@ A modern, professional Next.js frontend for the MediAI Pro medical AI assistant 
    npm install
    ```
 
-3. **Configure environment**
+3. **Set up environment variables**
    ```bash
    cp .env.local.example .env.local
-   # Edit .env.local with your backend API URL
+   ```
+
+   Edit `.env.local`:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:8080
    ```
 
 4. **Start development server**
@@ -92,130 +55,157 @@ A modern, professional Next.js frontend for the MediAI Pro medical AI assistant 
    npm run dev
    ```
 
-5. **Open your browser**
+5. **Open browser**
    ```
    http://localhost:3000
    ```
 
-## Project Structure
+## 🔧 Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL | `http://localhost:8080` |
+
+## 📦 Build & Deployment
+
+### Local Build
+```bash
+npm run build
+npm run start
+```
+
+### Vercel Deployment
+
+1. **Connect to Vercel**
+   ```bash
+   npx vercel --prod
+   ```
+
+2. **Set Environment Variables in Vercel**
+   - Go to Vercel Dashboard → Project Settings → Environment Variables
+   - Add: `NEXT_PUBLIC_API_URL=https://medical-chatbot-genai-app-1.onrender.com`
+
+3. **Deploy**
+   ```bash
+   npx vercel --prod
+   ```
+
+### Manual Deployment
+
+1. **Build the project**
+   ```bash
+   npm run build
+   ```
+
+2. **Deploy to your hosting platform**
+   - Upload the `.next` folder
+   - Set environment variables
+   - Configure domain routing
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### 1. API Connection Issues
+**Problem**: Unable to connect to backend API
+**Solution**:
+- Check if backend server is running
+- Verify `NEXT_PUBLIC_API_URL` is correct
+- Check CORS settings on backend
+
+#### 2. Authentication Problems
+**Problem**: Login not working in production
+**Solution**:
+- Ensure environment variables are set in Vercel
+- Check that API URL doesn't have typos
+- Verify backend CORS configuration
+
+#### 3. Build Failures
+**Problem**: Build fails with errors
+**Solution**:
+- Run `npm run build` locally first
+- Check for TypeScript errors
+- Ensure all dependencies are installed
+
+### Debug Mode
+
+Add this to your browser console to debug API calls:
+```javascript
+// Check API URL
+console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+
+// Test API connection
+fetch('/api/health')
+  .then(res => res.json())
+  .then(data => console.log('API Health:', data));
+```
+
+## 📁 Project Structure
 
 ```
 frontend/
 ├── src/
-│   ├── app/                 # Next.js App Router pages
+│   ├── app/                 # Next.js App Router
 │   │   ├── auth/           # Authentication pages
 │   │   ├── dashboard/      # Main dashboard
-│   │   ├── layout.tsx      # Root layout
-│   │   └── page.tsx        # Home page
-│   ├── components/         # Reusable UI components
+│   │   └── layout.tsx      # Root layout
+│   ├── components/         # Reusable components
 │   │   ├── ChatInterface.tsx
 │   │   ├── DocumentUpload.tsx
-│   │   ├── ErrorBoundary.tsx
-│   │   ├── LoadingSpinner.tsx
-│   │   └── Notification.tsx
-│   ├── lib/                # Utility libraries
-│   │   └── api.ts          # API client
-│   ├── types/              # TypeScript type definitions
-│   │   └── index.ts
-│   └── utils/              # Helper functions
-│       └── index.ts
-├── public/                 # Static assets
-├── .env.local             # Environment variables
+│   │   └── ...
+│   ├── lib/               # Utilities and API client
+│   │   └── api.ts
+│   └── types/             # TypeScript definitions
+├── public/                # Static assets
+├── .env.local            # Local environment variables
+├── .env.production       # Production environment variables
+├── vercel.json           # Vercel configuration
 └── package.json
 ```
 
-## Environment Variables
+## 🎯 Key Features
 
-Create a `.env.local` file with:
-
-```env
-NEXT_PUBLIC_API_URL=https://your-backend-api-url
-```
-
-## Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript type checking
-
-## Key Components
-
-### ChatInterface
-Advanced chat component with:
-- Real-time message streaming
-- Loading states and progress indicators
-- Source attribution
-- Message history
-- Auto-scrolling
-
-### DocumentUpload
-Admin document upload interface with:
-- Drag-and-drop file upload
-- Progress tracking
-- File validation
-- Role-based permissions
-
-### ErrorBoundary
-Comprehensive error handling with:
-- Graceful error recovery
-- User-friendly error messages
-- Error reporting
-- Fallback UI
-
-## API Integration
-
-The frontend communicates with the FastAPI backend through:
-- RESTful endpoints for authentication
-- WebSocket/streaming for real-time chat
-- File upload endpoints for documents
-- Health check endpoints
-
-## Security Features
-
-- Input validation and sanitization
-- XSS protection
-- CSRF protection
-- Secure token storage
+### Authentication
+- Secure login/signup system
 - Role-based access control
-- Secure file upload validation
+- Session management
 
-## Performance Optimizations
+### Chat Interface
+- Real-time AI conversations
+- Document-based responses
+- Source citations
+- Loading indicators
 
-- Code splitting with Next.js
-- Image optimization
-- Lazy loading components
-- Efficient re-renders with React.memo
-- Optimized bundle size
-- Caching strategies
+### Document Management
+- PDF upload with progress tracking
+- Role-based document access
+- Chunking visualization
 
-## Browser Support
+### Analytics
+- Usage statistics
+- Performance metrics
+- Response type analysis
 
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
+## 🤝 Contributing
 
-## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and build
+5. Submit a pull request
 
-1. Follow the existing code style
-2. Write comprehensive tests
-3. Update documentation
-4. Create detailed commit messages
-5. Follow semantic versioning
-
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
 
-## Support
+## 🆘 Support
 
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
+For issues and questions:
+1. Check the troubleshooting section
+2. Review the browser console for errors
+3. Ensure environment variables are set correctly
+4. Verify backend API is accessible
 
 ---
 
-Built with ❤️ for healthcare professionals and patients worldwide.
+**MediAI Pro** - Advanced AI-Powered Medical Information System
