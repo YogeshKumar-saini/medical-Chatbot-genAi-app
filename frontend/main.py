@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-API_URL = os.getenv("API_URL", "http://localhost:8080")
+API_URL = os.getenv("API_URL", "https://medical-chatbot-genai-app.onrender.com")
 
 # Page configuration with optimizations
 st.set_page_config(
