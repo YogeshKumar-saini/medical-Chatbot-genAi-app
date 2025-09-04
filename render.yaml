@@ -3,7 +3,7 @@ services:
     name: medical-chatbot-backend
     runtime: python
     buildCommand: pip install -r server/requirements.txt
-    startCommand: cd server && python main.py
+    startCommand: python server/main.py
     envVars:
       - key: HOST
         value: 0.0.0.0

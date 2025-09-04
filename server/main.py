@@ -22,16 +22,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import routers
-from auth.routes import router as auth_router
-from docs.routes import router as docs_router
-from chat.routes import router as chat_router
+try:
+    from auth.routes import router as auth_router
+    from docs.routes import router as docs_router
+    from chat.routes import router as chat_router
+except ImportError:
+    # Fallback for deployment environments
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from auth.routes import router as auth_router
+    from docs.routes import router as docs_router
+    from chat.routes import router as chat_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Medical AI Assistant Server")
     try:
     # Database connection test removed (test_connection does not exist)
-        from chat.chat_query import health_check, embed_model
+        try:
+            from chat.chat_query import health_check, embed_model
+        except ImportError:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from chat.chat_query import health_check, embed_model
         health_status = await health_check()
         if health_status.get("status") == "healthy":
             logger.info("✅ Vector store and AI services ready")
@@ -124,9 +139,21 @@ async def health_check_endpoint():
 @app.get("/health/detailed")
 async def detailed_health_check():
     try:
-        from config.db import test_connection
+        try:
+            from config.db import test_connection
+        except ImportError:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from config.db import test_connection
         db_status = "healthy" if await test_connection() else "unhealthy"
-        from chat.chat_query import health_check
+        try:
+            from chat.chat_query import health_check
+        except ImportError:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from chat.chat_query import health_check
         ai_status = await health_check()
         return {
             "status": "healthy" if db_status == "healthy" and ai_status.get("status") == "healthy" else "degraded",
