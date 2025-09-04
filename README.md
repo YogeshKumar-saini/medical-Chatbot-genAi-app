@@ -26,6 +26,11 @@ A sophisticated, full-stack AI-powered medical information system that provides 
 - npm or yarn
 - Backend API server running
 
+## Demo
+1. homePage of website image
+
+![homePage of website image](demo/1.png)
+
 ## Local Development
 
 1. **Clone the repository**
