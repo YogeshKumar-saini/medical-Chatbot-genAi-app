@@ -47,8 +47,8 @@ class ApiClient {
   private baseURL: string;
 
   constructor() {
-    // Use the correct production API URL
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://medical-chatbot-genai-app-1.onrender.com';
+    // Hardcode the production API URL
+    this.baseURL = 'https://medical-chatbot-genai-app-1.onrender.com/';
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
@@ -57,7 +57,7 @@ class ApiClient {
       },
     });
 
-    // Log the API URL for debugging (remove in production)
+    // Log the API URL for debugging
     if (typeof window !== 'undefined') {
       console.log('API Base URL:', this.baseURL);
     }
