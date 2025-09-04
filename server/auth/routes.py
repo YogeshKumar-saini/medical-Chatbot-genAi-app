@@ -5,7 +5,7 @@ from .models import SignupRequest
 from .hash_utils import hash_password, verify_password
 from config.db import users_collection
 
-router = APIRouter()
+router = APIRouter(prefix="/auth")
 security = HTTPBasic()
 
 
