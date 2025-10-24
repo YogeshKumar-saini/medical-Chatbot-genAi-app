@@ -1,5 +1,2 @@
-[build]
-builder = "python"
-
 [deploy]
 startCommand = "python server/main.py"
