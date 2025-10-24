@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "python server/main.py"
+startCommand = "python main.py"
