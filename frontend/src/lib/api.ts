@@ -47,8 +47,8 @@ class ApiClient {
   private baseURL: string;
 
   constructor() {
-    // Hardcode the production API URL
-    this.baseURL = 'https://medical-chatbot-genai-app-1.onrender.com/';
+    // Use environment variable or fallback to localhost
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,

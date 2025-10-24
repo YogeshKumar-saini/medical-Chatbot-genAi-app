@@ -35,7 +35,6 @@ export default function SignupPage() {
     setIsLoading(true);
     setError('');
 
-    // Client-side validation
     const usernameValidation = validateUsername(formData.username);
     const passwordValidation = validatePassword(formData.password);
 
@@ -64,11 +63,8 @@ export default function SignupPage() {
         role: formData.role,
       });
 
-      // Automatically login after successful signup
       try {
         const loginResponse = await apiClient.login(formData.username, formData.password);
-
-        // Store auth data
         localStorage.setItem('username', formData.username);
         localStorage.setItem('password', formData.password);
         localStorage.setItem('role', loginResponse.role);
@@ -77,9 +73,7 @@ export default function SignupPage() {
         setTimeout(() => {
           router.push('/dashboard');
         }, 2000);
-      } catch (loginErr: any) {
-        console.error('Auto-login failed:', loginErr);
-        // If auto-login fails, still show success but redirect to login
+      } catch {
         setSuccess(true);
         setTimeout(() => {
           router.push('/auth/login');
@@ -88,7 +82,6 @@ export default function SignupPage() {
     } catch (err: any) {
       console.error('Signup error:', err);
 
-      // Provide more specific error messages
       let errorMessage = 'Signup failed. Please try again.';
       if (err.response?.status === 400) {
         if (err.response.data?.detail?.includes('already exists')) {
@@ -99,7 +92,7 @@ export default function SignupPage() {
       } else if (err.response?.status === 429) {
         errorMessage = 'Too many signup attempts. Please try again later.';
       } else if (err.response?.status >= 500) {
-        errorMessage = 'Server error. Please try again in a few minutes.';
+        errorMessage = 'Server error. Please try again later.';
       } else if (err.message) {
         errorMessage = err.message;
       }
@@ -166,12 +159,9 @@ export default function SignupPage() {
                 value={formData.username}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 placeholder="Choose a unique username"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                3-50 characters, letters, numbers, and underscores only
-              </p>
             </div>
 
             {/* Password */}
@@ -187,7 +177,7 @@ export default function SignupPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="Create a secure password"
                 />
                 <button
@@ -198,9 +188,6 @@ export default function SignupPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                At least 8 characters with letters and numbers
-              </p>
             </div>
 
             {/* Confirm Password */}
@@ -216,7 +203,7 @@ export default function SignupPage() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="Confirm your password"
                 />
                 <button
@@ -229,37 +216,24 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Role Selection */}
+            {/* Role Dropdown */}
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-3">
-                Your Role
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                Select Your Role
               </label>
-              <div className="space-y-2">
-                {roles.map((role) => (
-                  <label
-                    key={role.value}
-                    className={cn(
-                      "flex items-start p-3 border rounded-lg cursor-pointer transition-colors",
-                      formData.role === role.value
-                        ? "border-indigo-500 bg-indigo-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="role"
-                      value={role.value}
-                      checked={formData.role === role.value}
-                      onChange={handleInputChange}
-                      className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <div className="ml-3">
-                      <div className="font-medium text-gray-900">{role.label}</div>
-                      <div className="text-sm text-gray-600">{role.description}</div>
-                    </div>
-                  </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              >
+                {roles.map(role => (
+                  <option key={role.value} value={role.value}>
+                    {role.label} — {role.description}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {/* Error Message */}
@@ -294,21 +268,16 @@ export default function SignupPage() {
             </button>
           </form>
 
-          {/* Sign In Link */}
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Already have an account?{' '}
-              <Link
-                href="/auth/login"
-                className="text-indigo-600 hover:text-indigo-700 font-medium"
-              >
+              <Link href="/auth/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
                 Sign In
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-8 text-sm text-gray-500">
           <p>© 2024 MediAI Pro. Advanced medical AI technology.</p>
         </div>
