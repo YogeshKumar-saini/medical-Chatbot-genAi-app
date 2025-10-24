@@ -1,0 +1,46 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/medicalapp-476116/medical-chatbot-backend:$COMMIT_SHA'
+      - '.'
+
+  # Push the Docker image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/medicalapp-476116/medical-chatbot-backend:$COMMIT_SHA'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'medical-chatbot-backend'
+      - '--image'
+      - 'gcr.io/medicalapp-476116/medical-chatbot-backend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'  # Change to your preferred region
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--max-instances'
+      - '10'
+      - '--set-env-vars'
+      - 'HOST=0.0.0.0,PORT=8080,MONGO_URI=${_MONGO_URI},DB_NAME=${_DB_NAME},GOOGLE_API_KEY=${_GOOGLE_API_KEY},PINECONE_API_KEY=${_PINECONE_API_KEY},PINECONE_ENV=${_PINECONE_ENV},PINECONE_INDEX_NAME=${_PINECONE_INDEX_NAME},GROQ_API_KEY=${_GROQ_API_KEY}'
+
+# Options for the build
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Timeout for the build
+timeout: '1200s'
