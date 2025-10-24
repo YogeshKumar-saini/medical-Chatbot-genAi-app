@@ -1,0 +1,8 @@
+[build]
+builder = "python"
+
+[deploy]
+startCommand = "python server/main.py"
+
+[build.buildCommand]
+command = "pip install -r server/requirements.txt"
