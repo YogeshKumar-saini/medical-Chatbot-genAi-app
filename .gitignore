@@ -28,5 +28,7 @@ python_env/
 /Yogesh.ipynb
 /lab4
 
-
-/.env
+# Environment variables
+.env
+server/.env
+frontend/.env*
