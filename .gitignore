@@ -27,3 +27,6 @@ python_env/
 .vscode/
 /Yogesh.ipynb
 /lab4
+
+
+/.env
