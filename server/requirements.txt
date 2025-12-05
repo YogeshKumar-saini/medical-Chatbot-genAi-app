@@ -30,6 +30,8 @@ tqdm
 # Authentication
 pymongo[bson] 
 bcrypt 
+python-jose[cryptography]
+passlib[bcrypt] 
 
 
 prometheus-fastapi-instrumentator

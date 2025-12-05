@@ -7,7 +7,9 @@ export interface User {
 }
 
 export interface AuthResponse {
-  message: string;
+  access_token: string;
+  token_type: string;
+  username: string;
   role: string;
 }
 
@@ -65,14 +67,10 @@ class ApiClient {
     // Request interceptor to add auth headers
     this.client.interceptors.request.use(
       (config) => {
-        const username = localStorage.getItem('username');
-        const password = localStorage.getItem('password');
+        const token = localStorage.getItem('token');
 
-        if (username && password && config.url?.includes('/api/v1/')) {
-          config.auth = {
-            username,
-            password,
-          };
+        if (token && config.url?.includes('/api/v1/')) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
 
         return config;
@@ -89,8 +87,8 @@ class ApiClient {
         if (error.response?.status === 401) {
           // Clear auth data on unauthorized
           if (typeof window !== 'undefined') {
+            localStorage.removeItem('token');
             localStorage.removeItem('username');
-            localStorage.removeItem('password');
             localStorage.removeItem('role');
             window.location.href = '/auth/login';
           }
@@ -114,20 +112,26 @@ class ApiClient {
         baseURL: this.baseURL,
         timeout: 30000,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
 
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+
       const response: AxiosResponse<AuthResponse> = await loginClient.post(
         '/api/v1/auth/login',
-        {},
-        {
-          auth: {
-            username,
-            password,
-          },
-        }
+        formData
       );
+
+      // Store token
+      if (response.data.access_token) {
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('username', response.data.username);
+        localStorage.setItem('role', response.data.role);
+      }
+
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Login failed');
@@ -183,6 +187,20 @@ class ApiClient {
     }
   }
 
+  async getChatHistory(limit: number = 50): Promise<{ messages: ChatMessage[] }> {
+    try {
+      const response = await this.client.get(`/api/v1/chat/history?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      return { messages: [] };
+    }
+  }
+
+  async clearChatHistory(): Promise<{ message: string }> {
+    const response = await this.client.delete('/api/v1/chat/history');
+    return response.data;
+  }
+
   // Document methods
   async uploadDocument(
     file: File,
@@ -221,11 +239,7 @@ class ApiClient {
 
   // Utility methods
   isAuthenticated(): boolean {
-    return !!(
-      localStorage.getItem('username') &&
-      localStorage.getItem('password') &&
-      localStorage.getItem('role')
-    );
+    return !!localStorage.getItem('token');
   }
 
   getCurrentUser(): User | null {
@@ -239,9 +253,10 @@ class ApiClient {
   }
 
   logout(): void {
+    localStorage.removeItem('token');
     localStorage.removeItem('username');
-    localStorage.removeItem('password');
     localStorage.removeItem('role');
+    window.location.href = '/auth/login';
   }
 }
 

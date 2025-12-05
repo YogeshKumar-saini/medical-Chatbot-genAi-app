@@ -47,6 +47,17 @@ except Exception as e:
     db = None
     users_collection = None
 
+# New Collection Accessor
+_chats_collection = None
+
+def get_chats_collection():
+    global _chats_collection
+    if _chats_collection is None:
+        _chats_collection = get_db()["chats"]
+    return _chats_collection
+
+chats_collection = get_chats_collection() if db is not None else None
+
 async def test_connection():
     """Test MongoDB connection"""
     try:
