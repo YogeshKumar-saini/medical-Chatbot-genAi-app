@@ -15,7 +15,8 @@ import hashlib
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Environment variables with validation
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -37,7 +38,7 @@ index = pc.Index(PINECONE_INDEX_NAME)
 # Optimized embedding model with caching
 class CachedEmbeddingModel:
     def __init__(self):
-        self.model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        self.model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         self.cache = {}
         self.max_cache_size = 1000
     
@@ -65,16 +66,32 @@ class CachedEmbeddingModel:
 
 embed_model = CachedEmbeddingModel()
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 # Optimized LLM with retry logic
 class OptimizedLLM:
     def __init__(self):
-        self.llm = ChatGroq(
-            temperature=0.2,  # Reduced for more consistent responses
-            model_name="llama-3.1-8b-instant",
-            groq_api_key=GROQ_API_KEY,
-            max_retries=3,
-            request_timeout=30
-        )
+        provider = os.getenv("LLM_PROVIDER", "gemini")
+        groq_model = os.getenv("GROQ_MODEL", "mixtral-8x7b-32768")
+        logger.info(f"Initializing LLM with provider: {provider}")
+        
+        if provider == "groq" and GROQ_API_KEY:
+             logger.info(f"Using Groq model: {groq_model}")
+             self.llm = ChatGroq(
+                 temperature=0.3,
+                 model_name=groq_model,
+                 groq_api_key=GROQ_API_KEY,
+                 max_retries=3
+             )
+        else:
+             self.llm = ChatGoogleGenerativeAI(
+                temperature=0.3,
+                model="gemini-3-pro-preview",
+                google_api_key=GOOGLE_API_KEY,
+                request_timeout=30,
+                max_retries=3,
+                convert_system_message_to_human=True
+            )
     
     async def generate(self, prompt: str, max_tokens: int = 1000) -> str:
         try:

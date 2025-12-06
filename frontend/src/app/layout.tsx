@@ -18,7 +18,11 @@ export const metadata: Metadata = {
   description: "Professional AI-powered medical information system with real-time intelligence and role-based access control",
   keywords: "medical AI, healthcare, medical assistant, AI diagnosis, medical documents",
   authors: [{ name: "MediAI Pro Team" }],
-  viewport: "width=device-width, initial-scale=1",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

@@ -62,17 +62,17 @@ async def chat_endpoint(
     Main chat endpoint with persistent storage
     """
     client_ip = get_client_ip(request)
-    user_id = user["username"]
+    user_id = user["email"]
     
     # Rate limiting check
-    is_limited, reset_time = rate_limiter.is_rate_limited(user_id)
+    is_limited, reset_time = await rate_limiter.is_rate_limited(user_id)
     if is_limited:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded. Try again in {reset_time} seconds"
         )
     
-    rate_limiter.record_request(user_id)
+    await rate_limiter.record_request(user_id)
     
     try:
         # Save User Message
@@ -128,7 +128,7 @@ async def get_chat_history(
 
         session = await asyncio.to_thread(
             chats_collection.find_one,
-            {"user_id": user["username"]},
+            {"user_id": user["email"]},
             {"messages": {"$slice": -limit}} # Get last N messages
         )
         
@@ -149,7 +149,7 @@ async def clear_chat_history(user: dict = Depends(authenticate)):
         if chats_collection is not None:
             await asyncio.to_thread(
                 chats_collection.update_one,
-                {"user_id": user["username"]},
+                {"user_id": user["email"]},
                 {"$set": {"messages": [], "updated_at": datetime.utcnow()}}
             )
         return {"message": "Chat history cleared successfully"}
@@ -216,7 +216,7 @@ async def get_chat_suggestions(user: dict = Depends(authenticate)):
         }
         
     except Exception as e:
-        logger.error(f"Error getting suggestions for user {user['username']}: {e}")
+        logger.error(f"Error getting suggestions for user {user['email']}: {e}")
         return {"suggested_queries": [], "personalized": False}
 
 @router.get("/health")
@@ -238,150 +238,50 @@ async def chat_health_check():
             detail="Chat service unhealthy"
         )
 
-# chat/session_manager.py - Session management for chat
-import time
-import uuid
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-from collections import defaultdict
-import threading
+from fastapi import UploadFile, File
 
-class ChatSessionManager:
+from chat.multimodal import analyze_medical_image
+
+@router.post("/analyze")
+async def analyze_image_endpoint(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    prompt: Optional[str] = Form("Analyze this medical image and describe findings."),
+    user: dict = Depends(authenticate)
+):
     """
-    Thread-safe session manager for chat conversations
+    Analyze uploaded medical image using Gemini Vision
     """
-    
-    def __init__(self, session_timeout: int = 3600):  # 1 hour timeout
-        self.sessions: Dict[str, Dict] = {}
-        self.session_timeout = session_timeout
-        self.lock = threading.RLock()
-        self.cleanup_interval = 300  # 5 minutes
-        self.last_cleanup = time.time()
-    
-    def _cleanup_expired_sessions(self):
-        """Remove expired sessions"""
-        if time.time() - self.last_cleanup < self.cleanup_interval:
-            return
+    try:
+        # Validate file type
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(400, "Invalid file type. Please upload an image.")
         
-        current_time = time.time()
-        expired_users = []
+        # Read file
+        content = await file.read()
         
-        with self.lock:
-            for user_id, session in self.sessions.items():
-                if current_time - session["last_activity"] > self.session_timeout:
-                    expired_users.append(user_id)
-            
-            for user_id in expired_users:
-                del self.sessions[user_id]
-            
-            self.last_cleanup = current_time
+        # Analyze
+        analysis = await analyze_medical_image(content, file.content_type, prompt)
         
-        if expired_users:
-            logger.info(f"Cleaned up {len(expired_users)} expired chat sessions")
-    
-    def get_or_create_session(self, user_id: str, user_role: str) -> Dict:
-        """Get existing session or create new one"""
-        self._cleanup_expired_sessions()
+        # Save interaction
+        user_msg = Message(role="user", content=f"[Image Analysis] {prompt}")
+        await save_message_to_db(user["email"], user_msg)
         
-        with self.lock:
-            if user_id not in self.sessions:
-                self.sessions[user_id] = {
-                    "session_id": str(uuid.uuid4()),
-                    "user_id": user_id,
-                    "user_role": user_role,
-                    "messages": [],
-                    "created_at": datetime.utcnow().isoformat(),
-                    "last_activity": time.time()
-                }
-            else:
-                self.sessions[user_id]["last_activity"] = time.time()
-            
-            return self.sessions[user_id].copy()
-    
-    def get_session(self, user_id: str) -> Optional[Dict]:
-        """Get existing session"""
-        self._cleanup_expired_sessions()
+        ai_msg = Message(
+            role="assistant", 
+            content=analysis,
+            sources=["Gemini Vision Analysis"]
+        )
+        await save_message_to_db(user["email"], ai_msg)
         
-        with self.lock:
-            session = self.sessions.get(user_id)
-            if session:
-                session["last_activity"] = time.time()
-                return session.copy()
-            return None
-    
-    def add_message(self, user_id: str, role: str, content: str, sources: Optional[List] = None):
-        """Add message to session"""
-        with self.lock:
-            if user_id in self.sessions:
-                message = {
-                    "role": role,
-                    "content": content,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "sources": sources or []
-                }
-                self.sessions[user_id]["messages"].append(message)
-                self.sessions[user_id]["last_activity"] = time.time()
-                
-                # Limit message history to prevent memory issues
-                if len(self.sessions[user_id]["messages"]) > 100:
-                    self.sessions[user_id]["messages"] = self.sessions[user_id]["messages"][-50:]
-    
-    def clear_session(self, user_id: str):
-        """Clear user session"""
-        with self.lock:
-            if user_id in self.sessions:
-                del self.sessions[user_id]
-    
-    def get_global_stats(self) -> Dict:
-        """Get global session statistics"""
-        with self.lock:
-            active_sessions = len(self.sessions)
-            total_messages = sum(len(session["messages"]) for session in self.sessions.values())
-            
-            role_distribution = defaultdict(int)
-            for session in self.sessions.values():
-                role_distribution[session["user_role"]] += 1
-            
-            return {
-                "active_sessions": active_sessions,
-                "total_messages": total_messages,
-                "role_distribution": dict(role_distribution),
-                "cleanup_stats": {
-                    "last_cleanup": self.last_cleanup,
-                    "cleanup_interval": self.cleanup_interval
-                }
-            }
+        return {
+            "analysis": analysis,
+            "type": "image_analysis"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        raise HTTPException(500, f"Image analysis failed: {str(e)}")
 
-# chat/rate_limiter.py - Rate limiting for chat
-import time
-from collections import defaultdict, deque
-from typing import Tuple
-
-class ChatRateLimiter:
-    """Rate limiter specifically for chat endpoints"""
-    
-    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests: defaultdict = defaultdict(deque)
-    
-    def is_rate_limited(self, identifier: str) -> Tuple[bool, int]:
-        """Check if identifier is rate limited"""
-        current_time = time.time()
-        user_requests = self.requests[identifier]
-        
-        # Remove old requests outside the window
-        while user_requests and user_requests[0] <= current_time - self.window_seconds:
-            user_requests.popleft()
-        
-        if len(user_requests) >= self.max_requests:
-            oldest_request = user_requests[0]
-            seconds_until_reset = int(self.window_seconds - (current_time - oldest_request))
-            return True, max(0, seconds_until_reset)
-        
-        return False, 0
-    
-    def record_request(self, identifier: str):
-        """Record a request"""
-        current_time = time.time()
-        self.requests[identifier].append(current_time)

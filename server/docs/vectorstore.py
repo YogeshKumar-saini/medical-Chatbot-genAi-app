@@ -18,7 +18,7 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Environment variables
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -26,7 +26,12 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENV = os.getenv("PINECONE_ENV")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 
-os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+if GOOGLE_API_KEY is None:
+    print("DEBUG: Setting default dummy key to prevent crash if not creating index")
+    # GOOGLE_API_KEY = "dummy" 
+    # Don't set dummy if we want to fail, but let's see why it's None.
+
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY if GOOGLE_API_KEY else ""
 UPLOAD_DIR = Path("./uploaded_docs")
 UPLOAD_DIR.mkdir(exist_ok=True)
 

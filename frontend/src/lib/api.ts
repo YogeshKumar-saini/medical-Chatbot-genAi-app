@@ -3,14 +3,32 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 // Types
 export interface User {
   username: string;
-  role: 'patient' | 'doctor' | 'nurse' | 'admin' | 'other';
+  role: 'SUPER_ADMIN' | 'ORG_ADMIN' | 'GEN_ADMIN' | 'PATIENT' | 'THERAPIST';
 }
 
 export interface AuthResponse {
+  otp?: any;
   access_token: string;
   token_type: string;
-  username: string;
-  role: string;
+  user?: {
+    email: string;
+    role: string;
+    name?: string;
+    id: string;
+  };
+  // Legacy fields for backward compatibility
+  username?: string;
+  role?: string;
+}
+
+export interface LibraryResource {
+  id: string;
+  title: string;
+  type: 'VIDEO' | 'ARTICLE';
+  url: string;
+  condition_tags: string[];
+  thumbnail_url?: string;
+  quiz?: any[]; // Simplified for now
 }
 
 export interface ChatMessage {
@@ -50,10 +68,10 @@ class ApiClient {
 
   constructor() {
     // Use environment variable or fallback to localhost
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000,
+      timeout: 60000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -96,7 +114,8 @@ class ApiClient {
 
         // Log error for debugging
         if (typeof window !== 'undefined') {
-          console.error('API Error:', error.response?.data || error.message);
+          const errorMessage = error?.response?.data || error?.message || 'Unknown API Error';
+          console.error('API Error:', errorMessage);
         }
 
         return Promise.reject(error);
@@ -105,52 +124,26 @@ class ApiClient {
   }
 
   // Authentication methods
-  async login(username: string, password: string): Promise<AuthResponse> {
+  async login(email: string, password: string): Promise<AuthResponse> {
     try {
-      // Create a separate client instance for login to avoid interceptor interference
-      const loginClient = axios.create({
-        baseURL: this.baseURL,
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-
-      const formData = new URLSearchParams();
-      formData.append('username', username);
-      formData.append('password', password);
-
-      const response: AxiosResponse<AuthResponse> = await loginClient.post(
+      const response: AxiosResponse<AuthResponse> = await this.client.post(
         '/api/v1/auth/login',
-        formData
+        { email, password }
       );
 
-      // Store token
+      // Store token and user data
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token);
-        localStorage.setItem('username', response.data.username);
-        localStorage.setItem('role', response.data.role);
+        if (response.data.user) {
+          localStorage.setItem('username', response.data.user.email);
+          localStorage.setItem('role', response.data.user.role);
+          localStorage.setItem('userId', response.data.user.id);
+        }
       }
 
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Login failed');
-    }
-  }
-
-  async signup(userData: {
-    username: string;
-    password: string;
-    role: string;
-  }): Promise<{ message: string }> {
-    try {
-      const response: AxiosResponse<{ message: string }> = await this.client.post(
-        '/api/v1/auth/signup',
-        userData
-      );
-      return response.data;
-    } catch (error: any) {
-      throw new Error(error.response?.data?.detail || 'Signup failed');
     }
   }
 
@@ -191,7 +184,8 @@ class ApiClient {
     try {
       const response = await this.client.get(`/api/v1/chat/history?limit=${limit}`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      console.warn("Failed to fetch chat history:", error.message);
       return { messages: [] };
     }
   }
@@ -227,6 +221,467 @@ class ApiClient {
     }
   }
 
+  async analyzeImage(
+    file: File,
+    prompt: string
+  ): Promise<{ analysis: string; type: string }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('prompt', prompt);
+
+      const response = await this.client.post(
+        '/api/v1/chat/analyze',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 60000,
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Image analysis failed');
+    }
+  }
+
+  // Voice methods
+  async transcribeAudio(file: File): Promise<{ text: string }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await this.client.post(
+        '/api/v1/voice/transcribe',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Transcription failed');
+    }
+  }
+
+  async textToSpeech(text: string): Promise<Blob> {
+    try {
+      const formData = new FormData();
+      formData.append('text', text);
+
+      const response = await this.client.post(
+        '/api/v1/voice/speak',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          responseType: 'blob',
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'TTS failed');
+    }
+  }
+
+  // Analytics
+  async getSystemStats(): Promise<any> {
+    try {
+      const response = await this.client.get('/api/v1/analytics/stats');
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch stats", error);
+      return null;
+    }
+  }
+
+  async getAnalyticsLogs(limit: number = 50): Promise<any> {
+    // Pointing to Admin System Logs for real data instead of mock analytics logs
+    const response = await this.client.get(`/api/v1/admin/logs/system?limit=${limit}`);
+    // The Dashboard expects { logs: [] } format or array.
+    // The admin endpoint returns Array directly.
+    // Let's ensure we match what the component expects (useEffect setLogs(logsData.logs || []))
+    // To support the component, we'll wrap it if it returns array.
+    if (Array.isArray(response.data)) {
+      return { logs: response.data };
+    }
+    return response.data;
+  }
+
+  async createAdminUser(userData: any): Promise<any> {
+    const response = await this.client.post('/api/v1/admin/users', userData);
+    return response.data;
+  }
+
+  async updateAdminUserDetails(userId: string, data: any): Promise<any> {
+    const response = await this.client.put(`/api/v1/admin/users/${userId}`, data);
+    return response.data;
+  }
+
+  async getClinicalSummary(patientId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/analytics/clinical/summary/${patientId}`);
+    return response.data;
+  }
+
+  async getPopulationTrends(): Promise<any> {
+    const response = await this.client.get('/api/v1/analytics/clinical/trends');
+    return response.data;
+  }
+
+  async analyzeRisk(data: { patient_id: string; messages: string[] }): Promise<any> {
+    const response = await this.client.post('/api/v1/analytics/clinical/analyze-risk', data);
+    return response.data;
+  }
+
+  // Onboarding
+  async createOrganization(data: { name: string; slug: string; description?: string }): Promise<any> {
+    const response = await this.client.post('/api/v1/onboarding/organizations', data);
+    return response.data;
+  }
+
+  async getOrganizations(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/organizations');
+    return response.data;
+  }
+
+  async createDoctorProfile(data: any): Promise<any> {
+    const response = await this.client.post('/api/v1/onboarding/doctor/profile', data);
+    return response.data;
+  }
+
+  async createPatientProfile(data: any): Promise<any> {
+    const response = await this.client.post('/api/v1/onboarding/patient/profile', data);
+    return response.data;
+  }
+
+  async requestDoctorPatientLink(data: any): Promise<any> {
+    const response = await this.client.post('/api/v1/onboarding/links/request', data);
+    return response.data;
+  }
+
+  async getDoctorLinks(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/doctor/links');
+    return response.data;
+  }
+
+  async updateLinkStatus(linkId: string, status: string): Promise<any> {
+    const response = await this.client.put(`/api/v1/onboarding/links/${linkId}/status?status=${status}`);
+    return response.data;
+  }
+
+  async getOnboardingStatus(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/status');
+    return response.data;
+  }
+
+  // Hierarchy / Verification
+  async verifyOrganization(orgId: string, verified: boolean): Promise<any> {
+    const response = await this.client.put(`/api/v1/onboarding/admin/organizations/${orgId}/verify?verified=${verified}`);
+    return response.data;
+  }
+
+  async getOrgDoctorRequests(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/org/doctor-requests');
+    return response.data;
+  }
+
+  async updateDoctorRequestStatus(doctorId: string, approved: boolean): Promise<any> {
+    const response = await this.client.put(`/api/v1/onboarding/org/doctor-requests/${doctorId}/status?approved=${approved}`);
+    return response.data;
+  }
+
+  async getOrgDoctors(orgId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/onboarding/organizations/${orgId}/doctors`);
+    return response.data;
+  }
+
+  // Appointments
+  async createAppointmentSlot(data: { start_time: string; end_time: string; is_available: boolean }): Promise<any> {
+    const response = await this.client.post('/api/v1/appointments/slots', data);
+    return response.data;
+  }
+
+  async bookAppointment(data: { slot_id: string; reason: string; notes?: string }): Promise<any> {
+    const response = await this.client.post('/api/v1/appointments', data);
+    return response.data;
+  }
+
+  async getAppointmentSlots(doctorId?: string): Promise<any> {
+    const url = doctorId ? `/api/v1/appointments/slots?doctor_id=${doctorId}` : '/api/v1/appointments/slots';
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async signup(userData: {
+    email: string;
+    password: string;
+    name: string;
+    role: string;
+  }): Promise<AuthResponse> {
+    const response = await this.client.post('/api/v1/auth/signup', userData);
+    return response.data;
+  }
+
+  async verifyEmail(email: string, otp: string): Promise<any> {
+    const response = await this.client.post('/api/v1/auth/verify-email', { email, otp });
+    return response.data;
+  }
+
+  async getAppointments(role?: string): Promise<any> {
+    const url = role ? `/api/v1/appointments?role=${role}` : '/api/v1/appointments';
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async updateAppointment(appointmentId: string, data: { status?: string; notes?: string }): Promise<any> {
+    const response = await this.client.put(`/api/v1/appointments/${appointmentId}`, data);
+    return response.data;
+  }
+
+  async joinAppointment(appointmentId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/appointments/${appointmentId}/join`);
+    return response.data;
+  }
+
+  async createPrescription(appointmentId: string, data: { medications: any[]; instructions?: string }): Promise<any> {
+    const response = await this.client.post(`/api/v1/appointments/${appointmentId}/prescribe`, data);
+    return response.data;
+  }
+
+  async getPrescriptions(appointmentId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/appointments/${appointmentId}/prescriptions`);
+    return response.data;
+  }
+
+  // Library
+  async getLibraryResources(params?: { tag?: string; type?: string }): Promise<LibraryResource[]> {
+    let url = '/api/v1/library/content';
+    if (params) {
+      const queryParams = new URLSearchParams();
+      if (params.tag) queryParams.append('tag', params.tag);
+      if (params.type) queryParams.append('type', params.type);
+      url += `?${queryParams.toString()}`;
+    }
+    const response = await this.client.get<LibraryResource[]>(url);
+    return response.data;
+  }
+
+  async createLibraryResource(data: Omit<LibraryResource, 'id'>) {
+    const response = await this.client.post<LibraryResource>('/api/v1/library/content', data);
+    return response.data;
+  }
+
+  async updateLibraryResource(resourceId: string, data: Partial<LibraryResource>) {
+    // Note: Backend might not support PUT for content yet based on routes.py.
+    // defaulting to content endpoint if supported, else likely 405.
+    // Given routes.py, only GET and POST are defined for /content.
+    // I will update the path anyway to match the pattern.
+    const response = await this.client.put<LibraryResource>(`/api/v1/library/content/${resourceId}`, data);
+    return response.data;
+  }
+
+  async deleteLibraryResource(resourceId: string) {
+    // Similarly, DELETE is not in routes.py
+    const response = await this.client.delete(`/api/v1/library/content/${resourceId}`);
+    return response.data;
+  }
+
+  async getQuizzes(): Promise<any> {
+    const response = await this.client.get('/api/v1/library/quizzes');
+    return response.data;
+  }
+
+  async submitQuiz(quizId: string, answers: any[]): Promise<any> {
+    const response = await this.client.post(`/api/v1/library/quizzes/${quizId}/submit`, { answers });
+    return response.data;
+  }
+
+
+  // ===== GROUP CHAT API METHODS =====
+
+  // Groups
+  async getGroups(): Promise<any> {
+    const response = await this.client.get('/api/v1/groups');
+    return response.data;
+  }
+
+  async getGroupDetails(groupId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/groups/${groupId}`);
+    return response.data;
+  }
+
+  async createGroup(data: { name: string; description?: string; member_ids?: string[] }): Promise<any> {
+    const response = await this.client.post('/api/v1/groups', data);
+    return response.data;
+  }
+
+  async updateGroupSettings(groupId: string, settings: any): Promise<any> {
+    const response = await this.client.put(`/api/v1/groups/${groupId}/settings`, settings);
+    return response.data;
+  }
+
+  async deleteGroup(groupId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/groups/${groupId}`);
+    return response.data;
+  }
+
+  // Members
+  async getGroupMembers(groupId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/groups/${groupId}/members`);
+    return response.data;
+  }
+
+  async addGroupMember(groupId: string, userId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/groups/${groupId}/members/${userId}`);
+    return response.data;
+  }
+
+  async removeGroupMember(groupId: string, userId: string, reason: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/groups/${groupId}/members/${userId}?reason=${reason}`);
+    return response.data;
+  }
+
+  // Moderation
+  async banMember(groupId: string, userId: string, data: { reason: string; duration_hours?: number }): Promise<any> {
+    const response = await this.client.put(`/api/v1/groups/${groupId}/members/${userId}/ban`, data);
+    return response.data;
+  }
+
+  async unbanMember(groupId: string, userId: string): Promise<any> {
+    const response = await this.client.put(`/api/v1/groups/${groupId}/members/${userId}/unban`);
+    return response.data;
+  }
+
+  async getModerationLogs(groupId: string, limit: number = 50): Promise<any> {
+    const response = await this.client.get(`/api/v1/groups/${groupId}/moderation-logs?limit=${limit}`);
+    return response.data;
+  }
+
+  // Messages
+  async getGroupMessages(groupId: string, page: number = 1, limit: number = 50): Promise<any> {
+    const response = await this.client.get(`/api/v1/groups/${groupId}/messages?page=${page}&limit=${limit}`);
+    return response.data;
+  }
+
+  async sendGroupMessage(groupId: string, data: { content: string; type: string; media_urls?: string[]; reply_to?: string }): Promise<any> {
+    const response = await this.client.post(`/api/v1/groups/${groupId}/messages`, data);
+    return response.data;
+  }
+
+  async deleteGroupMessage(groupId: string, messageId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/groups/${groupId}/messages/${messageId}`);
+    return response.data;
+  }
+
+  async editGroupMessage(groupId: string, messageId: string, content: string): Promise<any> {
+    const response = await this.client.put(`/api/v1/groups/${groupId}/messages/${messageId}?content=${encodeURIComponent(content)}`);
+    return response.data;
+  }
+
+  async addReaction(groupId: string, messageId: string, emoji: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/groups/${groupId}/messages/${messageId}/react?emoji=${encodeURIComponent(emoji)}`);
+    return response.data;
+  }
+
+  async removeReaction(groupId: string, messageId: string, emoji: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/groups/${groupId}/messages/${messageId}/react?emoji=${encodeURIComponent(emoji)}`);
+    return response.data;
+  }
+
+  // Media
+  async uploadMedia(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post('/api/v1/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000
+    });
+    return response.data;
+  }
+
+  async deleteMedia(fileType: string, filename: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/media/${fileType}/${filename}`);
+    return response.data;
+  }
+
+  async getMediaGallery(groupId: string, mediaType?: string): Promise<any> {
+    const url = mediaType
+      ? `/api/v1/media/groups/${groupId}/gallery?media_type=${mediaType}`
+      : `/api/v1/media/groups/${groupId}/gallery`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  // Profiles
+  async getProfile(userId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/profiles/${userId}`);
+    return response.data;
+  }
+
+  async updateProfile(data: { bio?: string; status_text?: string; privacy?: any }): Promise<any> {
+    const response = await this.client.put('/api/v1/profiles/me', data);
+    return response.data;
+  }
+
+  async uploadAvatar(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post('/api/v1/profiles/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  }
+
+  async followUser(userId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/profiles/${userId}/follow`);
+    return response.data;
+  }
+
+  async unfollowUser(userId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/profiles/${userId}/follow`);
+    return response.data;
+  }
+
+  async getFollowers(userId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/profiles/${userId}/followers`);
+    return response.data;
+  }
+
+  async getFollowing(userId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/profiles/${userId}/following`);
+    return response.data;
+  }
+
+  // Stories
+  async getStories(): Promise<any> {
+    const response = await this.client.get('/api/v1/stories');
+    return response.data;
+  }
+
+  async getUserStories(userId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/stories/${userId}`);
+    return response.data;
+  }
+
+  async createStory(data: { media_url: string; media_type: string; caption?: string }): Promise<any> {
+    const response = await this.client.post('/api/v1/stories', data);
+    return response.data;
+  }
+
+  async viewStory(storyId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/stories/${storyId}/view`);
+    return response.data;
+  }
+
+  async deleteStory(storyId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/stories/${storyId}`);
+    return response.data;
+  }
+
   // Health check
   async healthCheck(): Promise<HealthResponse> {
     try {
@@ -258,8 +713,134 @@ class ApiClient {
     localStorage.removeItem('role');
     window.location.href = '/auth/login';
   }
+
+  // Stories
+  async likeStory(storyId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/stories/${storyId}/like`);
+    return response.data;
+  }
+
+  // Clinical Features
+  async createClinicalNote(data: { patient_id: string; content: string; note_type?: string; is_private?: boolean }): Promise<any> {
+    const response = await this.client.post('/api/v1/clinical/notes', data);
+    return response.data;
+  }
+
+  async getClinicalNotes(patientId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/clinical/notes/${patientId}`);
+    return response.data;
+  }
+
+  async createRx(data: { patient_id: string; items: any[]; notes?: string }): Promise<any> {
+    const response = await this.client.post('/api/v1/clinical/prescriptions', data);
+    return response.data;
+  }
+
+  async getRx(patientId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/clinical/prescriptions/${patientId}`);
+    return response.data;
+  }
+
+  async getPatientDetails(patientId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/clinical/patients/${patientId}`);
+    return response.data;
+  }
+
+  // Admin Methods
+  async getAdminUsers(params?: { skip?: number; limit?: number; role?: string; search?: string }): Promise<any> {
+    const query = new URLSearchParams();
+    if (params?.skip) query.append('skip', params.skip.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.role && params.role !== 'ALL') query.append('role', params.role);
+    if (params?.search) query.append('search', params.search);
+
+    const response = await this.client.get(`/api/v1/admin/users?${query.toString()}`);
+    return response.data;
+  }
+
+  async updateUserRole(userId: string, role: string): Promise<any> {
+    const response = await this.client.put(`/api/v1/admin/users/${userId}/role`, { role });
+    return response.data;
+  }
+
+  async deleteUser(userId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/admin/users/${userId}`);
+    return response.data;
+  }
+
+  async deleteOrganization(orgId: string): Promise<any> {
+    const response = await this.client.delete(`/api/v1/admin/organizations/${orgId}`);
+    return response.data;
+  }
+
+  async getOrganizationDetails(orgId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/admin/organizations/${orgId}/details`);
+    return response.data;
+  }
+
+  async getOrganizationMembers(orgId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/admin/organizations/${orgId}/members`);
+    return response.data;
+  }
+
+  async getAdminDoctorDetails(doctorId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/admin/doctors/${doctorId}`);
+    return response.data;
+  }
+
+  async getAdminUserDetails(userId: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/admin/users/${userId}`);
+    return response.data;
+  }
+
+  // Delete Request Workflow (Org Admin)
+  async getDeleteRequests(): Promise<any> {
+    const response = await this.client.get('/api/v1/admin/requests/delete');
+    return response.data;
+  }
+
+  async approveDeleteRequest(requestId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/admin/requests/delete/${requestId}/approve`);
+    return response.data;
+  }
+
+  async rejectDeleteRequest(requestId: string): Promise<any> {
+    const response = await this.client.post(`/api/v1/admin/requests/delete/${requestId}/reject`);
+    return response.data;
+  }
+
+  async transferOrgOwnership(orgId: string, newAdminId: string): Promise<any> {
+    const response = await this.client.put(`/api/v1/admin/organizations/${orgId}/transfer-ownership`, { new_admin_id: newAdminId });
+    return response.data;
+  }
+
+  async updateOrganization(data: any): Promise<any> {
+    const response = await this.client.put('/api/v1/onboarding/organizations/me', data);
+    return response.data;
+  }
+
+  async inviteMember(email: string, role: string): Promise<any> {
+    const response = await this.client.post('/api/v1/onboarding/org/invite', { email, role });
+    return response.data;
+  }
+
+  async lookupUser(email: string): Promise<any> {
+    const response = await this.client.get(`/api/v1/admin/users/lookup?email=${encodeURIComponent(email)}`);
+    return response.data;
+  }
+
+  async getSystemLogs(limit: number = 50): Promise<any> {
+    // Ensure endpoint matches backend `admin/routes.py`
+    const response = await this.client.get(`/api/v1/admin/logs/system?limit=${limit}`);
+    return response.data;
+  }
+
+  async getMyOrganization(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/organizations/me');
+    return response.data;
+  }
 }
 
 // Export singleton instance
 export const apiClient = new ApiClient();
-export default apiClient;
+

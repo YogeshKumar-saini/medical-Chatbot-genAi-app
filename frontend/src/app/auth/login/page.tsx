@@ -1,183 +1,154 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, LogIn, Stethoscope } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { apiClient } from '@/lib/api';
-import { cn } from '@/utils';
-import type { LoginForm } from '@/types';
+import { useAuthStore } from '@/lib/store';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [formData, setFormData] = useState<LoginForm>({
-    username: '',
-    password: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+    const router = useRouter();
+    const { setAuth } = useAuthStore();
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+    });
+    const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
 
-    try {
-      // Clear any existing auth data before login
-      localStorage.removeItem('username');
-      localStorage.removeItem('password');
-      localStorage.removeItem('role');
+        if (!formData.email || !formData.password) {
+            toast.error('Please fill in all fields');
+            return;
+        }
 
-      const response = await apiClient.login(formData.username, formData.password);
+        setLoading(true);
+        try {
+            const response = await apiClient.login(formData.email, formData.password);
 
-      // Store auth data (use the username from form data as backend returns it in response.message)
-      localStorage.setItem('username', formData.username);
-      localStorage.setItem('password', formData.password);
-      localStorage.setItem('role', response.role);
+            if (response.user) {
+                // Use the new user object from response
+                setAuth(
+                    {
+                        id: response.user.id,
+                        email: response.user.email,
+                        name: response.user.name || '',
+                        role: response.user.role as any,
+                    },
+                    response.access_token
+                );
 
-      // Redirect to dashboard
-      router.push('/dashboard');
-    } catch (err: any) {
-      console.error('Login error:', err);
+                toast.success('Login successful!');
 
-      // Provide more specific error messages
-      let errorMessage = 'Login failed. Please try again.';
-      if (err.response?.status === 401) {
-        errorMessage = 'Invalid username or password. Please check your credentials.';
-      } else if (err.response?.status === 429) {
-        errorMessage = 'Too many login attempts. Please try again later.';
-      } else if (err.response?.status >= 500) {
-        errorMessage = 'Server error. Please try again in a few minutes.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
+                // Check onboarding status and route accordingly
+                try {
+                    const status = await apiClient.getOnboardingStatus();
 
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+                    // Route based on onboarding status
+                    if (!status.is_onboarded) {
+                        // Not onboarded yet - redirect to onboarding
+                        if (response.user.role === 'PATIENT') {
+                            router.push('/auth/onboarding/patient');
+                        } else if (response.user.role === 'THERAPIST') {
+                            router.push('/auth/onboarding/doctor');
+                        } else {
+                            router.push('/dashboard');
+                        }
+                    } else if (status.org_approval_status === 'PENDING') {
+                        // Waiting for org approval
+                        router.push('/auth/pending-approval');
+                    } else if (status.org_approval_status === 'REJECTED') {
+                        // Org rejected
+                        router.push('/auth/rejected');
+                    } else if (status.doctor_link_status === 'PENDING') {
+                        // Waiting for doctor approval
+                        router.push('/auth/pending-doctor');
+                    } else if (status.doctor_link_status === 'REJECTED') {
+                        // Doctor rejected
+                        router.push('/auth/rejected');
+                    } else if (status.doctor_link_status === 'NOT_STARTED' && response.user.role === 'PATIENT') {
+                        // Need to request doctor link
+                        router.push('/auth/link-request');
+                    } else {
+                        // All good - go to dashboard
+                        router.push('/dashboard');
+                    }
+                } catch (statusError) {
+                    console.error('Failed to check onboarding status:', statusError);
+                    // Fallback to dashboard
+                    router.push('/dashboard');
+                }
+            } else {
+                toast.error('Invalid response from server');
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Login failed');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+            <Card className="w-full max-w-md">
+                <CardHeader>
+                    <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
+                    <p className="text-center text-gray-600 dark:text-gray-400 mt-2">
+                        Sign in to your account
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <Input
+                            label="Email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="your@email.com"
+                            required
+                        />
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
-            <Stethoscope className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">MediAI Pro</h1>
-          <p className="text-gray-600">Advanced AI-Powered Medical Assistant</p>
+                        <PasswordInput
+                            label="Password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            placeholder="••••••••"
+                            required
+                        />
+
+                        <div className="flex items-center justify-between text-sm">
+                            <Link
+                                href="/auth/forgot-password"
+                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                            >
+                                Forgot password?
+                            </Link>
+                        </div>
+
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            className="w-full"
+                            isLoading={loading}
+                        >
+                            Sign In
+                        </Button>
+
+                        <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+                            Don't have an account?{' '}
+                            <Link href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                                Create one
+                            </Link>
+                        </p>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
-
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Welcome Back</h2>
-            <p className="text-gray-600">Sign in to access your medical AI assistant</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username
-              </label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                placeholder="Enter your username"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
-                className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={cn(
-                "w-full flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-colors",
-                isLoading
-                  ? "bg-blue-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              )}
-            >
-              {isLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Signing In...
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-5 h-5 mr-2" />
-                  Sign In
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Sign Up Link */}
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              Don't have an account?{' '}
-              <Link
-                href="/auth/signup"
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Create Account
-              </Link>
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-8 text-sm text-gray-500">
-          <p>© 2024 MediAI Pro. Advanced medical AI technology.</p>
-        </div>
-      </div>
-    </div>
-  );
+    );
 }

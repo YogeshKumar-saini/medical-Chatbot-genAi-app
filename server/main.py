@@ -11,6 +11,13 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
 # Configure logging
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load env vars before imports
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -38,8 +45,31 @@ except ImportError:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Medical AI Assistant Server")
+    # Initialize Redis
     try:
+        from config.redis_client import RedisClient
+        redis_client = RedisClient.get_instance()
+        await redis_client.ping()
+        logger.info("✅ Redis connected")
+    except Exception as e:
+        logger.warning(f"⚠️ Redis connection failed: {e}")
+
+    # Ensure Database Indexes
+    try:
+        from config.indexes import ensure_indexes
+        await ensure_indexes()
+    except ImportError:
+        # Fallback for deployment/test environments where path issues might occur
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from config.indexes import ensure_indexes
+        await ensure_indexes()
+    except Exception as e:
+        logger.error(f"⚠️ Failed to ensure indexes: {e}")
+
     # Database connection test removed (test_connection does not exist)
+    try:
         try:
             from chat.chat_query import health_check, embed_model
         except ImportError:
@@ -61,6 +91,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown/Cleanup
     logger.info("🛑 Shutting down Medical AI Assistant Server")
+    await RedisClient.close()
     # Add cleanup logic here
 
 app = FastAPI(
@@ -127,6 +158,72 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(auth_router, prefix="/api/v1/auth")
 app.include_router(docs_router, prefix="/api/v1/docs")
 app.include_router(chat_router, prefix="/api/v1/chat")
+
+try:
+    from voice.routes import router as voice_router
+    app.include_router(voice_router, prefix="/api/v1/voice")
+except ImportError as e:
+    logger.warning(f"Voice routes not available: {e}")
+
+try:
+    from analytics.routes import router as analytics_router
+    app.include_router(analytics_router, prefix="/api/v1/analytics")
+except ImportError as e:
+    logger.warning(f"Analytics routes not available: {e}")
+
+try:
+    from onboarding.routes import router as onboarding_router
+    app.include_router(onboarding_router, prefix="/api/v1/onboarding")
+except ImportError as e:
+    logger.error(f"Onboarding routes failed to load: {e}")
+
+try:
+    from appointments.routes import router as appointments_router
+    app.include_router(appointments_router, prefix="/api/v1/appointments")
+except ImportError as e:
+    logger.error(f"Appointments routes failed to load: {e}")
+
+try:
+    from library.routes import router as library_router
+    app.include_router(library_router, prefix="/api/v1/library")
+except ImportError as e:
+    logger.error(f"Library routes failed to load: {e}")
+
+try:
+    from groups.routes import router as groups_router
+    app.include_router(groups_router, prefix="/api/v1/groups")
+except ImportError as e:
+    logger.error(f"Groups routes failed to load: {e}")
+
+try:
+    from media.routes import router as media_router
+    app.include_router(media_router, prefix="/api/v1/media")
+except ImportError as e:
+    logger.error(f"Media routes failed to load: {e}")
+
+try:
+    from profiles.routes import router as profiles_router
+    app.include_router(profiles_router, prefix="/api/v1/profiles")
+except ImportError as e:
+    logger.error(f"Profiles routes failed to load: {e}")
+
+try:
+    from stories.routes import router as stories_router
+    app.include_router(stories_router, prefix="/api/v1/stories")
+except ImportError as e:
+    logger.error(f"Stories routes failed to load: {e}")
+
+try:
+    from clinical.routes import router as clinical_router
+    app.include_router(clinical_router, prefix="/api/v1/clinical")
+except ImportError as e:
+    logger.error(f"Clinical routes failed to load: {e}")
+
+try:
+    from admin.routes import router as admin_router
+    app.include_router(admin_router, prefix="/api/v1/admin")
+except ImportError as e:
+    logger.error(f"Admin routes failed to load: {e}")
 
 @app.get("/health")
 async def health_check_endpoint():
