@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function PendingDoctorPage() {
@@ -20,12 +21,7 @@ export default function PendingDoctorPage() {
 
     const checkStatus = async () => {
         try {
-            const response = await fetch('http://localhost:8080/api/v1/onboarding/status', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
-            const data = await response.json();
+            const data = await apiClient.getOnboardingStatus();
             setStatus(data);
             setLoading(false);
 

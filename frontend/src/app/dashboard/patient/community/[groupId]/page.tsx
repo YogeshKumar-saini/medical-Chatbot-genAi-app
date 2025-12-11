@@ -72,10 +72,12 @@ export default function GroupChatPage({ params }: { params: Promise<{ groupId: s
     const loadMessages = async () => {
         try {
             const data = await apiClient.getGroupMessages(groupId, 1, 50);
-            // Assuming data.messages is the array and they are sorted or we sort them
-            const sorted = (data.messages || []).sort((a: any, b: any) =>
-                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-            );
+            // Sort messages by timestamp (handle both 'timestamp' and 'created_at' fields)
+            const sorted = (data.messages || []).sort((a: any, b: any) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeA - timeB;
+            });
             setMessages(sorted);
             if (loading) setLoading(false);
         } catch (error) {
@@ -91,7 +93,7 @@ export default function GroupChatPage({ params }: { params: Promise<{ groupId: s
         try {
             await apiClient.sendGroupMessage(groupId, {
                 content: input,
-                type: 'text'
+                type: 'TEXT'
             });
             setInput('');
             loadMessages(); // Refresh immediately
@@ -147,18 +149,24 @@ export default function GroupChatPage({ params }: { params: Promise<{ groupId: s
                     ) : (
                         messages.map((msg) => {
                             const isMe = currentUser && (msg.sender_id === currentUser.id || msg.sender_name === currentUser.name);
+
+                            // Safely get timestamp - backend might return 'created_at' instead of 'timestamp'
+                            const timestamp = msg.timestamp || (msg as any).created_at;
+                            const messageTime = timestamp ? new Date(timestamp) : new Date();
+                            const isValidDate = !isNaN(messageTime.getTime());
+
                             return (
                                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                         <div className="flex items-center gap-2 mb-1 px-1">
                                             {!isMe && <span className="text-xs font-semibold text-gray-600">{msg.sender_name}</span>}
                                             <span className="text-[10px] text-gray-400">
-                                                {format(new Date(msg.timestamp), 'h:mm a')}
+                                                {isValidDate ? format(messageTime, 'h:mm a') : 'Just now'}
                                             </span>
                                         </div>
                                         <div className={`p-3 rounded-2xl text-sm ${isMe
-                                                ? 'bg-blue-600 text-white rounded-br-none'
-                                                : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none shadow-sm'
+                                            ? 'bg-blue-600 text-white rounded-br-none'
+                                            : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none shadow-sm'
                                             }`}>
                                             {msg.content}
                                         </div>

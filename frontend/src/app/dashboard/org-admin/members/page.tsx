@@ -12,7 +12,8 @@ import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api';
 
 export default function OrgAdminMembersPage() {
-    const [requests, setRequests] = useState<any[]>([]);
+    const [doctorRequests, setDoctorRequests] = useState<any[]>([]);
+    const [patientRequests, setPatientRequests] = useState<any[]>([]);
     const [activeMembers, setActiveMembers] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -21,21 +22,15 @@ export default function OrgAdminMembersPage() {
 
     const loadMembers = async () => {
         try {
-            // 1. Fetch Requests
-            const pendingRequests = await apiClient.getOrgDoctorRequests();
-            setRequests(pendingRequests);
+            // Fetch both doctor and patient pending requests
+            const pendingDoctorRequests = await apiClient.getOrgDoctorRequests();
+            const pendingPatientRequests = await apiClient.getOrgPendingPatients();
 
-            // 2. Fetch Active Members (Docs + Patients)
-            const myOrg = await apiClient.getMyOrganization();
-            if (myOrg && myOrg.id) {
-                const membersData = await apiClient.getOrganizationMembers(myOrg.id);
-                // Combine doctors and patients
-                // membersData = { doctors: [], patients: [] }
-                // Let's flatten
-                const docs = membersData.doctors.map((d: any) => ({ ...d, role: 'DOCTOR' }));
-                const pts = membersData.patients.map((p: any) => ({ ...p, role: 'PATIENT' }));
-                setActiveMembers([...docs, ...pts]);
-            }
+            setDoctorRequests(pendingDoctorRequests);
+            setPatientRequests(pendingPatientRequests);
+
+            // TODO: Fetch active members if needed
+            // For now, we'll leave activeMembers empty
         } catch (error) {
             console.error(error);
             toast.error('Failed to load members');
@@ -46,10 +41,20 @@ export default function OrgAdminMembersPage() {
         loadMembers();
     }, []);
 
-    const handleStatusUpdate = async (doctorId: string, approved: boolean) => {
+    const handleDoctorStatusUpdate = async (doctorId: string, approved: boolean) => {
         try {
             await apiClient.updateDoctorRequestStatus(doctorId, approved);
             toast.success(approved ? 'Doctor approved' : 'Doctor rejected');
+            loadMembers();
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to update status');
+        }
+    };
+
+    const handlePatientStatusUpdate = async (patientId: string, approved: boolean) => {
+        try {
+            await apiClient.approvePatient(patientId, approved);
+            toast.success(approved ? 'Patient approved' : 'Patient rejected');
             loadMembers();
         } catch (error: any) {
             toast.error(error.message || 'Failed to update status');
@@ -113,7 +118,7 @@ export default function OrgAdminMembersPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Pending Requests</CardTitle>
+                        <CardTitle>Pending Doctor Requests</CardTitle>
                     </CardHeader>
                     <CardContent padding="none">
                         <div className="overflow-x-auto">
@@ -135,14 +140,14 @@ export default function OrgAdminMembersPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                    {requests.length === 0 ? (
+                                    {doctorRequests.length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                                                No pending requests
+                                                No pending doctor requests
                                             </td>
                                         </tr>
                                     ) : (
-                                        requests.map((member) => (
+                                        doctorRequests.map((member: any) => (
                                             <tr key={member.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div>
@@ -165,14 +170,90 @@ export default function OrgAdminMembersPage() {
                                                         <Button
                                                             size="sm"
                                                             className="bg-green-600 hover:bg-green-700 text-white"
-                                                            onClick={() => handleStatusUpdate(member.user_id, true)}
+                                                            onClick={() => handleDoctorStatusUpdate(member.user_id, true)}
                                                         >
                                                             Approve
                                                         </Button>
                                                         <Button
                                                             size="sm"
                                                             variant="danger"
-                                                            onClick={() => handleStatusUpdate(member.user_id, false)}
+                                                            onClick={() => handleDoctorStatusUpdate(member.user_id, false)}
+                                                        >
+                                                            Reject
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Pending Patient Requests</CardTitle>
+                    </CardHeader>
+                    <CardContent padding="none">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                            Patient
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                            Organization
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                            Status
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {patientRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                                No pending patient requests
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        patientRequests.map((patient: any) => (
+                                            <tr key={patient.patient_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                            {patient.name || `Patient ID: ${patient.patient_id}`}
+                                                        </div>
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            {patient.email}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <Badge variant="info">{patient.organization_id || 'N/A'}</Badge>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <Badge variant="warning">PENDING</Badge>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-green-600 hover:bg-green-700 text-white"
+                                                            onClick={() => handlePatientStatusUpdate(patient.patient_id, true)}
+                                                        >
+                                                            Approve
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="danger"
+                                                            onClick={() => handlePatientStatusUpdate(patient.patient_id, false)}
                                                         >
                                                             Reject
                                                         </Button>

@@ -22,12 +22,7 @@ export default function PendingApprovalPage() {
 
     const checkStatus = async () => {
         try {
-            const response = await fetch('http://localhost:8080/api/v1/onboarding/status', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
-            const data = await response.json();
+            const data = await apiClient.getOnboardingStatus();
             setStatus(data);
             setLoading(false);
 

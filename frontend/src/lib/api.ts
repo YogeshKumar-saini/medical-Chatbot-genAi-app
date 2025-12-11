@@ -68,7 +68,7 @@ class ApiClient {
 
   constructor() {
     // Use environment variable or fallback to localhost
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 60000,
@@ -459,6 +459,16 @@ class ApiClient {
 
   async updateDoctorRequestStatus(doctorId: string, approved: boolean): Promise<any> {
     const response = await this.client.put(`/api/v1/onboarding/org/doctor-requests/${doctorId}/status?approved=${approved}`);
+    return response.data;
+  }
+
+  async getOrgPendingPatients(): Promise<any> {
+    const response = await this.client.get('/api/v1/onboarding/org/pending-patients');
+    return response.data;
+  }
+
+  async approvePatient(patientId: string, approved: boolean): Promise<any> {
+    const response = await this.client.put(`/api/v1/onboarding/org/approve-patient/${patientId}?approved=${approved}`);
     return response.data;
   }
 

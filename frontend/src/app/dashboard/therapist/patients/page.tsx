@@ -2,31 +2,51 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, Search, ChevronRight, User } from 'lucide-react';
+import { Users, Search, ChevronRight, User, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import DashboardGuard from '@/components/DashboardGuard';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import toast from 'react-hot-toast';
 
 export default function PatientsListPage() {
     const [patients, setPatients] = useState<any[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const fetchPatients = async () => {
+        try {
+            const data = await apiClient.getDoctorLinks();
+            const allLinks = data || [];
+
+            // Separate pending and active patients
+            const pending = allLinks.filter((link: any) => link.status === 'PENDING');
+            const active = allLinks.filter((link: any) =>
+                ['APPROVED', 'ACTIVE'].includes(link.status)
+            );
+
+            setPendingRequests(pending);
+            setPatients(active);
+        } catch (error) {
+            console.error("Failed to fetch patients:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLinkStatus = async (linkId: string, status: 'APPROVED' | 'REJECTED') => {
+        try {
+            await apiClient.updateLinkStatus(linkId, status);
+            toast.success(`Patient request ${status.toLowerCase()}`);
+            fetchPatients(); // Reload the list
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to update status');
+        }
+    };
+
     useEffect(() => {
-        const fetchPatients = async () => {
-            try {
-                const data = await apiClient.getDoctorLinks();
-                // Filter only active/approved patients
-                const activePatients = (data.links || []).filter((link: any) =>
-                    ['APPROVED', 'ACTIVE'].includes(link.status)
-                );
-                setPatients(activePatients);
-            } catch (error) {
-                console.error("Failed to fetch patients:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchPatients();
     }, []);
 
@@ -57,6 +77,60 @@ export default function PatientsListPage() {
                         />
                     </div>
                 </div>
+
+                {/* Pending Patient Requests */}
+                {!loading && pendingRequests.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-yellow-600" />
+                                Pending Patient Requests ({pendingRequests.length})
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {pendingRequests.map((request: any) => (
+                                    <div
+                                        key={request.id}
+                                        className="flex items-center justify-between p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-bold text-lg">
+                                                {request.patient_name?.charAt(0) || 'P'}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                    {request.patient_name || 'Unknown Patient'}
+                                                </h3>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                    Requested on {new Date(request.created_at).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                onClick={() => handleLinkStatus(request.id, 'APPROVED')}
+                                            >
+                                                <CheckCircle className="w-4 h-4 mr-1" />
+                                                Approve
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="danger"
+                                                onClick={() => handleLinkStatus(request.id, 'REJECTED')}
+                                            >
+                                                <XCircle className="w-4 h-4 mr-1" />
+                                                Reject
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {loading ? (
                     <div className="flex justify-center py-12">

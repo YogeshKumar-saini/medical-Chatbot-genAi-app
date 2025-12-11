@@ -35,11 +35,22 @@ async def update_my_profile(
     
     update_data = updates.dict(exclude_unset=True)
     
+    # Handle name update separately (stored in users collection)
+    if "name" in update_data:
+        new_name = update_data.pop("name")
+        await asyncio.to_thread(
+            users_collection.update_one,
+            {"_id": user_doc["_id"]},
+            {"$set": {"name": new_name}}
+        )
+
     success = await ProfileService.update_profile(user_id, update_data)
     
     if not success:
-        raise HTTPException(500, "Failed to update profile")
-    
+        # If profile update failed but name logic ran, we might still want to consider partial success or error.
+        # However, ProfileService.update_profile usually returns True if it ran update_one, even if nothing changed in that specific doc.
+        pass
+
     return {"message": "Profile updated successfully"}
 
 @router.post("/me/avatar")

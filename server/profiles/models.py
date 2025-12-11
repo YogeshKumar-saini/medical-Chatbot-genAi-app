@@ -29,6 +29,7 @@ class UserProfile(BaseModel):
     created_at: datetime
 
 class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
     bio: Optional[str] = None
     status_text: Optional[str] = None
     privacy: Optional[PrivacySettings] = None

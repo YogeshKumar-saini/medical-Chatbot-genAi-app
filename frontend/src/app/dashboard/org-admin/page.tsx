@@ -21,12 +21,8 @@ export default function OrgAdminDashboard() {
     const [pendingRequests, setPendingRequests] = useState(0);
 
     useEffect(() => {
-        if (!isAuthenticated || user?.role !== 'ORG_ADMIN') {
-            router.push('/dashboard');
-        } else {
-            loadOrgData();
-        }
-    }, [isAuthenticated, user, router]);
+        loadOrgData();
+    }, []);
 
     const loadOrgData = async () => {
         try {
@@ -35,8 +31,13 @@ export default function OrgAdminDashboard() {
             const status = await apiClient.getOnboardingStatus();
             setOrgStatus(status);
 
-            const requests = await apiClient.getOrgDoctorRequests();
-            setPendingRequests(requests.length);
+            // Fetch both doctor and patient pending requests
+            const doctorRequests = await apiClient.getOrgDoctorRequests();
+            const patientRequests = await apiClient.getOrgPendingPatients();
+
+            // Combine the counts
+            const totalPending = doctorRequests.length + patientRequests.length;
+            setPendingRequests(totalPending);
         } catch (error) {
             console.error('Failed to load org data', error);
         }
