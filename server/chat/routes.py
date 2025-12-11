@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from auth.routes import authenticate
-from chat.chat_query import answer_query, get_suggested_queries, health_check
+from chat.chat_query import answer_query, answer_query_stream_with_memory, get_suggested_queries, health_check, get_conversation_memory
 from chat.models import CreateChatRequest, Message, ChatSession
 from config.db import chats_collection
 from .rate_limiter import ChatRateLimiter
@@ -114,6 +114,85 @@ async def chat_endpoint(
             detail="Chat service temporarily unavailable"
         )
 
+@router.post("/chat/stream")
+async def chat_stream_endpoint(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    message: str = Form(..., min_length=1, max_length=1000),
+    user: dict = Depends(authenticate)
+):
+    """
+    Streaming chat endpoint that returns responses in real-time chunks
+    """
+    client_ip = get_client_ip(request)
+    user_id = user["email"]
+
+    # Rate limiting check
+    is_limited, reset_time = await rate_limiter.is_rate_limited(user_id)
+    if is_limited:
+        async def rate_limit_generator():
+            yield f"Rate limit exceeded. Try again in {reset_time} seconds"
+        return StreamingResponse(
+            rate_limit_generator(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}
+        )
+
+    await rate_limiter.record_request(user_id)
+
+    try:
+        # Save User Message
+        user_msg = Message(role="user", content=message)
+        await save_message_to_db(user_id, user_msg)
+
+        # Start streaming response
+        async def generate_response():
+            full_response = ""
+            try:
+                async for chunk in answer_query_stream_with_memory(message, user["role"], user_id):
+                    full_response += chunk
+                    yield chunk
+
+                # Save complete AI Response after streaming
+                ai_msg = Message(
+                    role="assistant",
+                    content=full_response,
+                    sources=["Streaming Response"]  # Could be enhanced to extract sources
+                )
+                await save_message_to_db(user_id, ai_msg)
+
+                # Log interaction (Background)
+                background_tasks.add_task(
+                    log_chat_interaction,
+                    user_id=user_id,
+                    user_role=user["role"],
+                    message=message,
+                    response_type="streaming",
+                    sources_count=1
+                )
+
+            except Exception as e:
+                logger.error(f"Streaming error for user {user_id}: {str(e)}")
+                yield f"\n\nError: {str(e)}"
+
+        return StreamingResponse(
+            generate_response(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}  # Disable nginx buffering
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Stream setup error for user {user_id}: {str(e)}")
+        async def error_generator():
+            yield "Chat service temporarily unavailable"
+        return StreamingResponse(
+            error_generator(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}
+        )
+
 @router.get("/history")
 async def get_chat_history(
     limit: int = 50,
@@ -156,6 +235,41 @@ async def clear_chat_history(user: dict = Depends(authenticate)):
     except Exception as e:
         logger.error(f"Failed to clear history: {e}")
         raise HTTPException(status_code=500, detail="Failed to clear history")
+
+@router.delete("/memory")
+async def clear_conversation_memory(user: dict = Depends(authenticate)):
+    """
+    Clear user's conversation memory (for contextual chat)
+    """
+    try:
+        memory = get_conversation_memory(user["email"])
+        memory.clear()
+        return {"message": "Conversation memory cleared successfully"}
+    except Exception as e:
+        logger.error(f"Failed to clear memory: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear conversation memory")
+
+@router.get("/followup")
+async def get_followup_suggestions(user: dict = Depends(authenticate)):
+    """
+    Get contextual follow-up question suggestions based on conversation history
+    """
+    try:
+        memory = get_conversation_memory(user["email"])
+        suggestions = getattr(memory, 'followup_suggestions', [])
+
+        # Fallback to general suggestions if no contextual ones
+        if not suggestions:
+            base_suggestions = get_suggested_queries()
+            suggestions = base_suggestions[:3]
+
+        return {
+            "suggestions": suggestions,
+            "contextual": len(getattr(memory, 'followup_suggestions', [])) > 0
+        }
+    except Exception as e:
+        logger.error(f"Failed to get follow-up suggestions: {e}")
+        return {"suggestions": [], "contextual": False}
 
 # ... Remaining endpoints (suggestions, analytics, health, stream) kept largely same but without session manager dependency ...
 
@@ -284,4 +398,3 @@ async def analyze_image_endpoint(
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(500, f"Image analysis failed: {str(e)}")
-

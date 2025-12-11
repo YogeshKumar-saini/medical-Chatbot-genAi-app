@@ -224,6 +224,7 @@ class GroupService:
             return [
                 {
                     "id": str(m["_id"]),
+                    "group_id": m["group_id"],
                     "user_id": m["user_id"],
                     "role": m["role"],
                     "status": m["status"],

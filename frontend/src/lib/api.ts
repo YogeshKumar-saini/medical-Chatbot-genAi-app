@@ -63,7 +63,7 @@ export interface HealthResponse {
 }
 
 class ApiClient {
-  private client: AxiosInstance;
+  public client: AxiosInstance;
   private baseURL: string;
 
   constructor() {
@@ -168,6 +168,60 @@ class ApiClient {
     }
   }
 
+  // Streaming chat method
+  async sendMessageStream(
+    message: string,
+    onChunk: (chunk: string) => void,
+    onComplete: (fullResponse: string, sources: string[]) => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    try {
+      const formData = new FormData();
+      formData.append('message', message);
+
+      const response = await fetch(`${this.baseURL}/api/v1/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        onError(errorText || 'Streaming failed');
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        onError('Unable to read response stream');
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullResponse += chunk;
+          onChunk(chunk);
+        }
+
+        // For streaming, we don't get structured sources, so we'll provide a basic response
+        onComplete(fullResponse, ['Real-time Response']);
+      } catch (streamError) {
+        onError('Stream reading failed');
+      }
+    } catch (error: any) {
+      onError(error.response?.data?.detail || 'Streaming request failed');
+    }
+  }
+
   async getSuggestions(): Promise<SuggestionResponse> {
     try {
       const response: AxiosResponse<SuggestionResponse> = await this.client.get(
@@ -193,6 +247,20 @@ class ApiClient {
   async clearChatHistory(): Promise<{ message: string }> {
     const response = await this.client.delete('/api/v1/chat/history');
     return response.data;
+  }
+
+  async clearConversationMemory(): Promise<{ message: string }> {
+    const response = await this.client.delete('/api/v1/chat/memory');
+    return response.data;
+  }
+
+  async getFollowupSuggestions(): Promise<{ suggestions: string[]; contextual: boolean }> {
+    try {
+      const response = await this.client.get('/api/v1/chat/followup');
+      return response.data;
+    } catch {
+      return { suggestions: [], contextual: false };
+    }
   }
 
   // Document methods
@@ -843,4 +911,3 @@ class ApiClient {
 
 // Export singleton instance
 export const apiClient = new ApiClient();
-

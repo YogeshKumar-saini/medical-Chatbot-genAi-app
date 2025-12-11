@@ -57,6 +57,10 @@ class MessageService:
             
             logger.info(f"✅ Message {message_id} sent to group {group_id}")
             
+            # _id is added by insert_one, we need to remove it or convert it
+            if "_id" in message_doc:
+                del message_doc["_id"]
+                
             return {
                 "id": message_id,
                 **message_doc

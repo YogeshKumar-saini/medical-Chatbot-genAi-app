@@ -5,14 +5,16 @@ import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { HeartIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
+import { HeartIcon, ChatBubbleLeftIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
+import CreateStoryModal from '@/components/stories/CreateStoryModal';
 
 export default function PatientStoriesPage() {
     const [stories, setStories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     useEffect(() => {
         loadStories();
@@ -51,14 +53,22 @@ export default function PatientStoriesPage() {
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        Community Stories
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        Share and explore health journeys
-                    </p>
+            <div className="space-y-6 relative min-h-screen pb-20">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                            Community Stories
+                        </h1>
+                        <p className="text-gray-600 dark:text-gray-400 mt-1">
+                            Share and explore health journeys
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        leftIcon={<PlusIcon className="h-5 w-5" />}
+                    >
+                        Share Your Story
+                    </Button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -67,7 +77,7 @@ export default function PatientStoriesPage() {
                             <CardContent padding="lg">
                                 <div className="text-center py-12">
                                     <p className="text-gray-600 dark:text-gray-400">
-                                        No stories yet
+                                        No stories yet. Be the first to share!
                                     </p>
                                 </div>
                             </CardContent>
@@ -78,11 +88,15 @@ export default function PatientStoriesPage() {
                                 <CardContent padding="none">
                                     {story.media_url && (
                                         <div className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-t-xl overflow-hidden">
-                                            <img
-                                                src={story.media_url}
-                                                alt={story.title}
-                                                className="w-full h-full object-cover"
-                                            />
+                                            {story.media_type === 'video' ? (
+                                                <video src={story.media_url} controls className="w-full h-full object-cover" />
+                                            ) : (
+                                                <img
+                                                    src={story.media_url}
+                                                    alt={story.title}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
                                         </div>
                                     )}
                                     <div className="p-4 space-y-3">
@@ -91,7 +105,7 @@ export default function PatientStoriesPage() {
                                                 {story.title || 'Untitled Story'}
                                             </h3>
                                             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                                                {story.content}
+                                                {story.content || story.caption}
                                             </p>
                                         </div>
 
@@ -127,6 +141,12 @@ export default function PatientStoriesPage() {
                         ))
                     )}
                 </div>
+
+                <CreateStoryModal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => setIsCreateModalOpen(false)}
+                    onSuccess={loadStories}
+                />
             </div>
         </DashboardLayout>
     );

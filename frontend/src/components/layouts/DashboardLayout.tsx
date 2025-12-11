@@ -21,6 +21,7 @@ import {
     BuildingOfficeIcon,
     UserGroupIcon,
     BookOpenIcon,
+    HeartIcon,
 } from '@heroicons/react/24/outline';
 import { Avatar } from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
@@ -56,6 +57,7 @@ const navigationItems: NavItem[] = [
     { name: 'Prescriptions', href: '/dashboard/patient/prescriptions', icon: DocumentTextIcon, roles: ['PATIENT'] },
     { name: 'Community', href: '/dashboard/patient/community', icon: UserGroupIcon, roles: ['PATIENT'] },
     { name: 'Library', href: '/dashboard/patient/library', icon: BookOpenIcon, roles: ['PATIENT'] },
+    { name: 'Wellness', href: '/dashboard/patient/wellness', icon: HeartIcon, roles: ['PATIENT'] },
 
     // Shared / Generic
     { name: 'Settings', href: '/dashboard/settings', icon: Cog6ToothIcon, roles: ['SUPER_ADMIN', 'GEN_ADMIN', 'ORG_ADMIN', 'THERAPIST', 'PATIENT'] },

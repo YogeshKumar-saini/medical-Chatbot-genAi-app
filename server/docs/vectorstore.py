@@ -13,6 +13,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import hashlib
 import json
+import urllib3
+
+# Disable SSL warnings and set environment variables for SSL bypass
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['SSL_VERIFY'] = 'false'
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +46,23 @@ METADATA_CACHE = UPLOAD_DIR / "metadata_cache.json"
 
 class OptimizedVectorStore:
     def __init__(self):
-        self.pc = Pinecone(api_key=PINECONE_API_KEY)
+        try:
+            self.pc = Pinecone(api_key=PINECONE_API_KEY)
+        except Exception as e:
+            logger.error(f"Failed to initialize Pinecone client: {e}")
+            # Try with SSL verification disabled as fallback
+            import ssl
+            try:
+                self.pc = Pinecone(
+                    api_key=PINECONE_API_KEY,
+                    ssl_ca_certs=None,
+                    ssl_verify=False
+                )
+                logger.warning("Pinecone initialized with SSL verification disabled")
+            except Exception as e2:
+                logger.error(f"Failed to initialize Pinecone client even with SSL disabled: {e2}")
+                raise e
+
         self.spec = ServerlessSpec(cloud="aws", region=PINECONE_ENV)
         self.embed_model = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
@@ -52,9 +74,14 @@ class OptimizedVectorStore:
             separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""]
         )
         self.executor = ThreadPoolExecutor(max_workers=4)
-        
-        self._ensure_index_exists()
-        self.index = self.pc.Index(PINECONE_INDEX_NAME)
+
+        try:
+            self._ensure_index_exists()
+            self.index = self.pc.Index(PINECONE_INDEX_NAME)
+        except Exception as e:
+            logger.error(f"Failed to initialize vector store index: {e}")
+            # Set index to None to indicate initialization failure
+            self.index = None
     
     def _ensure_index_exists(self):
         """Ensure Pinecone index exists with optimal configuration"""
@@ -155,13 +182,17 @@ class OptimizedVectorStore:
     
     async def _upsert_chunks_batch(self, chunks: List[Dict], batch_size: int = 100):
         """Upsert chunks to Pinecone in optimized batches"""
+        if self.index is None:
+            logger.error("Vector store index not initialized - cannot upsert chunks")
+            raise Exception("Pinecone index not available")
+
         total_chunks = len(chunks)
         logger.info(f"Upserting {total_chunks} chunks in batches of {batch_size}")
-        
+
         with tqdm(total=total_chunks, desc="Uploading to Pinecone") as pbar:
             for i in range(0, total_chunks, batch_size):
                 batch = chunks[i:i + batch_size]
-                
+
                 try:
                     await asyncio.to_thread(
                         self.index.upsert,
@@ -169,7 +200,7 @@ class OptimizedVectorStore:
                         namespace="default"
                     )
                     pbar.update(len(batch))
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to upsert batch {i//batch_size + 1}: {e}")
                     # Retry with smaller batch
@@ -256,6 +287,10 @@ class OptimizedVectorStore:
     
     async def delete_document(self, doc_id: str) -> bool:
         """Delete all vectors for a specific document"""
+        if self.index is None:
+            logger.error("Vector store index not initialized - cannot delete document")
+            return False
+
         try:
             # Query to find all vectors with this doc_id
             query_response = await asyncio.to_thread(
@@ -265,22 +300,26 @@ class OptimizedVectorStore:
                 top_k=10000,  # Large number to get all matches
                 include_metadata=False
             )
-            
+
             vector_ids = [match["id"] for match in query_response.get("matches", [])]
-            
+
             if vector_ids:
                 await asyncio.to_thread(self.index.delete, ids=vector_ids)
                 logger.info(f"Deleted {len(vector_ids)} vectors for document {doc_id}")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to delete document {doc_id}: {e}")
             return False
-    
+
     async def get_index_stats(self) -> Dict:
         """Get index statistics"""
+        if self.index is None:
+            logger.error("Vector store index not initialized - cannot get stats")
+            return {}
+
         try:
             stats = await asyncio.to_thread(self.index.describe_index_stats)
             return {

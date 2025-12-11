@@ -11,7 +11,7 @@ async def upload_docs(
     file: UploadFile = File(...),
     role: str = Form(...)
 ):
-    allowed_roles = ["SUPER_ADMIN", "GEN_ADMIN", "THERAPIST"]
+    allowed_roles = ["SUPER_ADMIN", "GEN_ADMIN", "THERAPIST", "DOCTOR"]
     if user["role"] not in allowed_roles:
         raise HTTPException(status_code=403, detail="Not authorized to upload documents")
 

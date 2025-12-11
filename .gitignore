@@ -29,10 +29,8 @@ python_env/
 /lab4
 
 # Environment variables
-# .env
-# server/.env
-# frontend/.env*
+.env
 server/.env
-IMPLEMENTATION_STATUS.md
-GROUP_CHAT_README.md
-ROADMAP.md
+frontend/.env*
+server/.env
+

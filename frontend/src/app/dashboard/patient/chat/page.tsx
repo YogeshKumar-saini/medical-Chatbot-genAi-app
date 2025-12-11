@@ -103,17 +103,53 @@ export default function PatientChatPage() {
         }
     };
 
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+
     const handleVoiceRecord = async () => {
         if (!isRecording) {
-            // Start recording
-            setIsRecording(true);
-            toast.success('Recording started...');
-            // TODO: Implement actual voice recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const recorder = new MediaRecorder(stream);
+                const chunks: Blob[] = [];
+
+                recorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                };
+
+                recorder.onstop = async () => {
+                    const audioBlob = new Blob(chunks, { type: 'audio/wav' });
+                    // Create a File object from the Blob
+                    const audioFile = new File([audioBlob], "voice_input.wav", { type: "audio/wav" });
+
+                    setIsLoading(true);
+                    try {
+                        const response = await apiClient.transcribeAudio(audioFile);
+                        setInput((prev) => prev ? `${prev} ${response.text}` : response.text);
+                        toast.success('Transcription complete');
+                    } catch (error) {
+                        console.error('Transcription failed:', error);
+                        toast.error('Failed to transcribe audio');
+                    } finally {
+                        setIsLoading(false);
+                        // Stop all tracks to release microphone
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                };
+
+                recorder.start();
+                setMediaRecorder(recorder);
+                setIsRecording(true);
+                toast.success('Recording started...');
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                toast.error('Could not access microphone');
+            }
         } else {
-            // Stop recording
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                setMediaRecorder(null);
+            }
             setIsRecording(false);
-            toast.success('Recording stopped');
-            // TODO: Send audio to transcription API
         }
     };
 

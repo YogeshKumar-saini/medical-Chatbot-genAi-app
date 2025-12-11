@@ -225,6 +225,18 @@ try:
 except ImportError as e:
     logger.error(f"Admin routes failed to load: {e}")
 
+try:
+    from wellness.routes import router as wellness_router
+    app.include_router(wellness_router, prefix="/api/v1/wellness")
+except ImportError as e:
+    logger.error(f"Wellness routes failed to load: {e}")
+
+try:
+    from notifications.routes import router as notifications_router
+    app.include_router(notifications_router, prefix="/api/v1/notifications")
+except ImportError as e:
+    logger.error(f"Notifications routes failed to load: {e}")
+
 @app.get("/health")
 async def health_check_endpoint():
     return {

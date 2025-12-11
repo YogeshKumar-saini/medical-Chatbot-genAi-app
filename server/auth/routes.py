@@ -73,7 +73,7 @@ async def signup(req: SignupRequest, background_tasks: BackgroundTasks):
     await asyncio.to_thread(otps_collection.insert_one, otp_doc)
     
     # Send email in background
-    # background_tasks.add_task(send_otp_email, req.email, otp_code, OtpType.EMAIL_VERIFICATION)
+    background_tasks.add_task(send_otp_email, req.email, otp_code, OtpType.EMAIL_VERIFICATION)
     
     return {"message": "User registered successfully. Please verify your email.", "email": req.email}
 

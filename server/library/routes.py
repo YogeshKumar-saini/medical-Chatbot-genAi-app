@@ -28,7 +28,11 @@ async def get_library_content(
         
     cursor = content_collection.find(query).limit(50)
     docs = await asyncio.to_thread(lambda: list(cursor))
-    return [{"id": str(d["_id"]), **d} for d in docs]
+    results = []
+    for d in docs:
+        d["id"] = str(d.pop("_id"))
+        results.append(d)
+    return results
 
 @router.post("/content", status_code=status.HTTP_201_CREATED)
 async def add_content(content: EducationalContent, user: dict = Depends(authenticate)):

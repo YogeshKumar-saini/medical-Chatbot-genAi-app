@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, FileText, Hash, Mic, Image as ImageIcon, Volume2, X, StopCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, FileText, Hash, Mic, Image as ImageIcon, Volume2, X, StopCircle, Zap } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { cn, generateId } from '@/utils';
 import type { ChatMessage } from '@/types';
@@ -16,7 +16,10 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [, setIsLoadingSuggestions] = useState(false);
+  const [isLoadingInitialSuggestions, setIsLoadingInitialSuggestions] = useState(false);
+  const [isStreamingEnabled, setIsStreamingEnabled] = useState(true); // Enable streaming by default
+  const [followupSuggestions, setFollowupSuggestions] = useState<string[]>([]);
+  const [isLoadingFollowupSuggestions, setIsLoadingFollowupSuggestions] = useState(false);
 
   // Multimodal & Voice State
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -39,7 +42,7 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
   };
 
   const loadSuggestions = async () => {
-    setIsLoadingSuggestions(true);
+    setIsLoadingInitialSuggestions(true);
     try {
       const response = await apiClient.getSuggestions();
       setSuggestions(response.suggested_queries);
@@ -51,7 +54,7 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
         'What are common treatments for asthma?',
       ]);
     } finally {
-      setIsLoadingSuggestions(false);
+      setIsLoadingInitialSuggestions(false);
     }
   };
 
@@ -80,31 +83,78 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
     setMessages(prev => [...prev, loadingMessage]);
 
     try {
-      let aiContent = '';
-      let aiSources: string[] = [];
-
       if (imageFile) {
-        // Handle Image Analysis
+        // Handle Image Analysis (non-streaming for now)
         const analysisResponse = await apiClient.analyzeImage(imageFile, messageToSend);
-        aiContent = analysisResponse.analysis;
+        setMessages(prev => prev.map(msg =>
+          msg.id === loadingMessage.id
+            ? {
+              ...msg,
+              content: analysisResponse.analysis,
+              sources: ["Gemini Vision Analysis"],
+              isLoading: false,
+            }
+            : msg
+        ));
         setImageFile(null); // Clear image after sending
-      } else {
-        // Regular Text Chat
-        const chatResponse = await apiClient.sendMessage(messageToSend);
-        aiContent = chatResponse.answer;
-        aiSources = chatResponse.sources;
-      }
-
-      setMessages(prev => prev.map(msg =>
-        msg.id === loadingMessage.id
-          ? {
-            ...msg,
-            content: aiContent,
-            sources: aiSources,
-            isLoading: false,
+      } else if (isStreamingEnabled) {
+        // Streaming Text Chat
+        let currentContent = '';
+        await apiClient.sendMessageStream(
+          messageToSend,
+          (chunk: string) => {
+            // Update message content incrementally
+            currentContent += chunk;
+            setMessages(prev => prev.map(msg =>
+              msg.id === loadingMessage.id
+                ? {
+                  ...msg,
+                  content: currentContent,
+                  isLoading: true, // Keep loading state during streaming
+                }
+                : msg
+            ));
+          },
+          (fullResponse: string, sources: string[]) => {
+            // Finalize message with complete content and sources
+            setMessages(prev => prev.map(msg =>
+              msg.id === loadingMessage.id
+                ? {
+                  ...msg,
+                  content: fullResponse,
+                  sources: sources,
+                  isLoading: false,
+                }
+                : msg
+            ));
+          },
+          (error: string) => {
+            // Handle streaming error
+            setMessages(prev => prev.map(msg =>
+              msg.id === loadingMessage.id
+                ? {
+                  ...msg,
+                  content: `Sorry, I encountered an error: ${error}`,
+                  isLoading: false,
+                }
+                : msg
+            ));
           }
-          : msg
-      ));
+        );
+      } else {
+        // Regular non-streaming Text Chat
+        const chatResponse = await apiClient.sendMessage(messageToSend);
+        setMessages(prev => prev.map(msg =>
+          msg.id === loadingMessage.id
+            ? {
+              ...msg,
+              content: chatResponse.answer,
+              sources: chatResponse.sources,
+              isLoading: false,
+            }
+            : msg
+        ));
+      }
     } catch (error: any) {
       setMessages(prev => prev.map(msg =>
         msg.id === loadingMessage.id
@@ -117,6 +167,25 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
       ));
     } finally {
       setIsLoading(false);
+      // Load follow-up suggestions after sending a message
+      if (!imageFile) { // Only load for text messages
+        loadFollowupSuggestions();
+      }
+    }
+  };
+
+  const loadFollowupSuggestions = async () => {
+    if (messages.length === 0) return;
+
+    setIsLoadingFollowupSuggestions(true);
+    try {
+      const response = await apiClient.getFollowupSuggestions();
+      setFollowupSuggestions(response.suggestions);
+    } catch (error) {
+      console.error('Failed to load follow-up suggestions:', error);
+      setFollowupSuggestions([]);
+    } finally {
+      setIsLoadingFollowupSuggestions(false);
     }
   };
 
@@ -196,27 +265,53 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
     setImageFile(null);
   };
 
+  const clearMemory = async () => {
+    try {
+      await apiClient.clearConversationMemory();
+      // Optionally show a success message
+      console.log('Conversation memory cleared');
+    } catch (error) {
+      console.error('Failed to clear memory:', error);
+    }
+  };
+
   return (
-    <div className={cn("flex flex-col h-[700px] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden font-sans", className)}>
+    <div className={cn("flex flex-col h-[700px] bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-2xl border border-blue-100 overflow-hidden font-sans", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
-        <div className="flex items-center space-x-3">
-          <div className="flex-shrink-0 p-2 bg-blue-100 rounded-lg">
-            <Bot className="h-6 w-6 text-blue-600" />
+      <div className="flex items-center justify-between p-6 border-b border-blue-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        <div className="flex items-center space-x-4">
+          <div className="flex-shrink-0 p-3 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30">
+            <Bot className="h-7 w-7 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Medical AI Assistant</h3>
-            <p className="text-xs text-gray-500 font-medium">Powerd by Gemini 1.5 Pro</p>
+            <h3 className="text-xl font-bold text-white">Medical AI Assistant</h3>
+            <p className="text-sm text-blue-100 font-medium">Powered by Gemini 1.5 Pro • HIPAA Compliant</p>
           </div>
         </div>
-        {messages.length > 0 && (
+        <div className="flex items-center space-x-3">
+          {/* Streaming Toggle */}
           <button
-            onClick={clearChat}
-            className="text-xs text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-full hover:bg-gray-50 transition-colors"
+            onClick={() => setIsStreamingEnabled(!isStreamingEnabled)}
+            className={cn(
+              "flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-lg",
+              isStreamingEnabled
+                ? "bg-green-500 text-white hover:bg-green-600"
+                : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
+            )}
+            title={isStreamingEnabled ? "Disable streaming responses" : "Enable streaming responses"}
           >
-            Clear History
+            <Zap className={cn("h-4 w-4", isStreamingEnabled ? "text-white" : "text-blue-200")} />
+            <span>{isStreamingEnabled ? "Live" : "Static"}</span>
           </button>
-        )}
+          {messages.length > 0 && (
+            <button
+              onClick={clearChat}
+              className="text-sm text-white/80 hover:text-white px-4 py-2 rounded-full hover:bg-white/10 transition-colors backdrop-blur-sm"
+            >
+              Clear Chat
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -276,8 +371,15 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
                   >
                     {message.isLoading ? (
                       <div className="flex items-center space-x-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                        <span className="text-gray-500">Analyzing...</span>
+                        <div className="relative">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                          {isStreamingEnabled && (
+                            <div className="absolute inset-0 rounded-full border-2 border-blue-200 animate-ping"></div>
+                          )}
+                        </div>
+                        <span className="text-gray-500">
+                          {isStreamingEnabled ? "Streaming response..." : "Analyzing..."}
+                        </span>
                       </div>
                     ) : (
                       <div className="markdown-content">
@@ -412,6 +514,28 @@ export default function ChatInterface({ className }: ChatInterfaceProps) {
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </button>
         </div>
+
+        {/* Follow-up Suggestions */}
+        {followupSuggestions.length > 0 && !isLoading && (
+          <div className="mt-3">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="h-1 w-1 bg-blue-500 rounded-full"></div>
+              <span className="text-xs font-medium text-gray-600">Follow-up questions:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {followupSuggestions.slice(0, 3).map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSendMessage(suggestion)}
+                  disabled={isLoading}
+                  className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 transition-all"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <p className="text-center text-[10px] text-gray-400 mt-2">
           AI can make mistakes. Please verify important medical information with a doctor.

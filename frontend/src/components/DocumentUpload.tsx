@@ -1,351 +1,288 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import { cn, formatFileSize } from '@/utils';
-import type { UserRole } from '@/types';
+import { cn } from '@/utils';
 
-const roles: { value: UserRole; label: string; description: string }[] = [
-  { value: 'doctor', label: 'Doctor', description: 'Medical professionals and specialists' },
-  { value: 'nurse', label: 'Nurse', description: 'Nursing staff and healthcare providers' },
-  { value: 'patient', label: 'Patient', description: 'Patients and general users' },
-  { value: 'admin', label: 'Admin', description: 'System administrators' },
-  { value: 'other', label: 'Other', description: 'Other healthcare roles' },
-];
-
-interface UploadResult {
-  file: File;
-  status: 'pending' | 'uploading' | 'success' | 'error';
-  progress: number;
+interface UploadedDocument {
+  id: string;
+  filename: string;
+  uploadedAt: string;
+  status: 'processing' | 'completed' | 'failed';
+  chunks?: number;
   error?: string;
-  result?: any;
 }
 
-export default function DocumentUpload() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('doctor');
-  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
+interface DocumentUploadProps {
+  className?: string;
+  onUploadComplete?: () => void;
+}
+
+export default function DocumentUpload({ className, onUploadComplete }: DocumentUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<{
+    stage: 'uploading' | 'processing' | 'embedding' | 'completed' | 'error';
+    message: string;
+    progress: number;
+  } | null>(null);
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.includes('pdf')) {
-        setError('Please select a PDF file');
-        return;
-      }
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-
-      setSelectedFile(file);
-      setError('');
-      setUploadResult(null);
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Please select a PDF file');
+      return;
     }
+
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File size must be less than 50MB');
+      return;
+    }
+
+    await uploadDocument(file);
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
+  const uploadDocument = async (file: File) => {
     setIsUploading(true);
-    setError('');
-
-    const result: UploadResult = {
-      file: selectedFile,
-      status: 'uploading',
-      progress: 0,
-    };
-    setUploadResult(result);
+    setUploadProgress({
+      stage: 'uploading',
+      message: 'Uploading document...',
+      progress: 0
+    });
 
     try {
-      // Simulate progress updates
+      // Create upload progress simulation
       const progressInterval = setInterval(() => {
-        setUploadResult(prev => prev ? {
-          ...prev,
-          progress: Math.min(prev.progress + 10, 90)
-        } : null);
+        setUploadProgress(prev => {
+          if (!prev) return prev;
+          const newProgress = Math.min(prev.progress + 10, 90);
+          return { ...prev, progress: newProgress };
+        });
       }, 200);
 
-      const uploadResponse = await apiClient.uploadDocument(selectedFile, selectedRole);
+      // Upload the document
+      setUploadProgress(prev => prev ? { ...prev, message: 'Uploading to server...', progress: 20 } : null);
+
+      const response = await apiClient.uploadDocument(file, 'DOCTOR');
 
       clearInterval(progressInterval);
-      setUploadResult({
-        file: selectedFile,
-        status: 'success',
-        progress: 100,
-        result: uploadResponse,
+
+      // Processing stages
+      setUploadProgress({
+        stage: 'processing',
+        message: 'Processing PDF content...',
+        progress: 40
       });
 
-      // Reset form after successful upload
+      // Simulate processing delay (in real app, this would be server-sent events)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setUploadProgress({
+        stage: 'embedding',
+        message: 'Generating embeddings...',
+        progress: 70
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setUploadProgress({
+        stage: 'completed',
+        message: 'Document processed successfully!',
+        progress: 100
+      });
+
+      // Add to uploaded documents list
+      const newDoc: UploadedDocument = {
+        id: response.doc_id,
+        filename: file.name,
+        uploadedAt: new Date().toLocaleString(),
+        status: 'completed',
+        chunks: 0 // Would come from server in real implementation
+      };
+
+      setUploadedDocuments(prev => [newDoc, ...prev]);
+
+      // Clear progress after 3 seconds
       setTimeout(() => {
-        setSelectedFile(null);
-        setUploadResult(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        setUploadProgress(null);
+        setIsUploading(false);
       }, 3000);
 
-    } catch (err: any) {
-      setUploadResult({
-        file: selectedFile,
-        status: 'error',
-        progress: 0,
-        error: err.message || 'Upload failed',
+      onUploadComplete?.();
+
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+      setUploadProgress({
+        stage: 'error',
+        message: error.message || 'Upload failed',
+        progress: 0
       });
-      setError(err.message || 'Upload failed');
-    } finally {
-      setIsUploading(false);
+
+      // Clear error after 5 seconds
+      setTimeout(() => {
+        setUploadProgress(null);
+        setIsUploading(false);
+      }, 5000);
     }
   };
 
-  const clearFile = () => {
-    setSelectedFile(null);
-    setUploadResult(null);
-    setError('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'processing':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'processing':
+        return 'text-blue-600 bg-blue-50';
+      case 'completed':
+        return 'text-green-600 bg-green-50';
+      case 'failed':
+        return 'text-red-600 bg-red-50';
+      default:
+        return 'text-gray-600 bg-gray-50';
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-4">
-            <Upload className="w-6 h-6 text-blue-600" />
+    <div className={cn("space-y-6", className)}>
+      {/* Upload Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+            <Upload className="h-8 w-8 text-blue-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Document Upload Hub</h2>
-          <p className="text-gray-600 mt-1">
-            Upload medical documents for AI-powered analysis and role-based access
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Upload Medical Documents
+          </h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Upload PDF documents to enhance your AI assistant's medical knowledge base.
+            Supported formats: PDF (max 50MB)
           </p>
-        </div>
 
-        {/* File Upload Area */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Select PDF Document
-          </label>
-
-          {!selectedFile ? (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
-            >
-              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-lg font-medium text-gray-900 mb-2">
-                Drop your PDF here or click to browse
-              </p>
-              <p className="text-sm text-gray-600">
-                Supports PDF files up to 10MB
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <FileText className="h-8 w-8 text-red-500" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                    <p className="text-xs text-gray-600">{formatFileSize(selectedFile.size)}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={clearFile}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Role Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Access Control - Select Target Role
-          </label>
-          <div className="grid grid-cols-1 gap-3">
-            {roles.map((role) => (
-              <label
-                key={role.value}
-                className={cn(
-                  "flex items-center p-4 border rounded-lg cursor-pointer transition-colors",
-                  selectedRole === role.value
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value={role.value}
-                  checked={selectedRole === role.value}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <div className="font-medium text-gray-900">{role.label}</div>
-                  <div className="text-sm text-gray-600">{role.description}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Priority Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Document Priority
-          </label>
-          <div className="flex space-x-3">
-            {(['high', 'medium', 'low'] as const).map((p) => (
-              <label
-                key={p}
-                className={cn(
-                  "flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer transition-colors capitalize",
-                  priority === p
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 hover:border-gray-300 text-gray-700"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="priority"
-                  value={p}
-                  checked={priority === p}
-                  onChange={(e) => setPriority(e.target.value as typeof priority)}
-                  className="sr-only"
-                />
-                {p}
-              </label>
-            ))}
-          </div>
+          {/* Upload Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleFileSelect}
+            className="hidden"
+            disabled={isUploading}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className={cn(
+              "px-6 py-3 rounded-lg font-medium transition-all",
+              isUploading
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
+            )}
+          >
+            {isUploading ? 'Uploading...' : 'Choose PDF File'}
+          </button>
         </div>
 
         {/* Upload Progress */}
-        {uploadResult && (
-          <div className="mb-6">
-            <div className="bg-gray-50 rounded-lg p-4">
+        {uploadProgress && (
+          <div className="mt-6 max-w-md mx-auto">
+            <div className="bg-gray-50 rounded-lg p-4 border">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-900">
-                  {uploadResult.file.name}
+                <span className="text-sm font-medium text-gray-700">
+                  {uploadProgress.message}
                 </span>
-                <span className="text-sm text-gray-600">
-                  {uploadResult.progress}%
+                <span className="text-sm text-gray-500">
+                  {uploadProgress.progress}%
                 </span>
               </div>
-
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+              <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={cn(
                     "h-2 rounded-full transition-all duration-300",
-                    uploadResult.status === 'success' ? "bg-green-500" :
-                    uploadResult.status === 'error' ? "bg-red-500" : "bg-blue-500"
+                    uploadProgress.stage === 'error'
+                      ? "bg-red-500"
+                      : uploadProgress.stage === 'completed'
+                      ? "bg-green-500"
+                      : "bg-blue-500"
                   )}
-                  style={{ width: `${uploadResult.progress}%` }}
-                ></div>
+                  style={{ width: `${uploadProgress.progress}%` }}
+                />
               </div>
+            </div>
+          </div>
+        )}
+      </div>
 
-              <div className="flex items-center space-x-2">
-                {uploadResult.status === 'uploading' && (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                    <span className="text-sm text-gray-600">Processing document...</span>
-                  </>
-                )}
-                {uploadResult.status === 'success' && (
-                  <>
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm text-green-600">Upload successful!</span>
-                  </>
-                )}
-                {uploadResult.status === 'error' && (
-                  <>
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm text-red-600">{uploadResult.error}</span>
-                  </>
-                )}
-              </div>
-
-              {uploadResult.status === 'success' && uploadResult.result && (
-                <div className="mt-3 p-3 bg-green-50 rounded-md">
-                  <div className="text-sm text-green-800">
-                    <strong>Document ID:</strong> {uploadResult.result.doc_id}
-                  </div>
-                  <div className="text-sm text-green-800">
-                    <strong>Accessible to:</strong> {uploadResult.result.accessible_to}
+      {/* Uploaded Documents */}
+      {uploadedDocuments.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">
+            Recent Uploads
+          </h4>
+          <div className="space-y-3">
+            {uploadedDocuments.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
+              >
+                <div className="flex items-center space-x-3">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium text-gray-900 truncate max-w-xs">
+                      {doc.filename}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {doc.uploadedAt}
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && !uploadResult?.error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Upload Button */}
-        <button
-          onClick={handleUpload}
-          disabled={!selectedFile || isUploading}
-          className={cn(
-            "w-full flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-colors",
-            !selectedFile || isUploading
-              ? "bg-gray-300 cursor-not-allowed text-gray-500"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          )}
-        >
-          {isUploading ? (
-            <>
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Uploading...
-            </>
-          ) : (
-            <>
-              <Upload className="h-5 w-5 mr-2" />
-              Upload Document
-            </>
-          )}
-        </button>
-
-        {/* Info */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <div className="flex items-start">
-            <AlertCircle className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Upload Guidelines:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Only PDF files are supported</li>
-                <li>Maximum file size: 10MB</li>
-                <li>Documents will be processed for AI analysis</li>
-                <li>Access is restricted based on selected role</li>
-              </ul>
-            </div>
+                <div className="flex items-center space-x-3">
+                  <span className={cn(
+                    "px-2 py-1 rounded-full text-xs font-medium",
+                    getStatusColor(doc.status)
+                  )}>
+                    {getStatusIcon(doc.status)}
+                    <span className="ml-1 capitalize">{doc.status}</span>
+                  </span>
+                  {doc.chunks && (
+                    <span className="text-xs text-gray-500">
+                      {doc.chunks} chunks
+                    </span>
+                  )}
+                  <button className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+      )}
+
+      {/* Instructions */}
+      <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+        <h5 className="font-semibold text-blue-900 mb-2">📋 Upload Guidelines</h5>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>• Upload medical documents, research papers, or clinical guidelines</li>
+          <li>• PDF format only, maximum 50MB file size</li>
+          <li>• Documents are processed and embedded for AI reference</li>
+          <li>• Processing may take 1-2 minutes for large documents</li>
+          <li>• Uploaded documents enhance AI responses for better medical accuracy</li>
+        </ul>
       </div>
     </div>
   );

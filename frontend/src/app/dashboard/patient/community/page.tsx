@@ -93,6 +93,7 @@ export default function PatientCommunityPage() {
                                             variant="primary"
                                             size="sm"
                                             className="w-full"
+                                            onClick={() => router.push(`/dashboard/patient/community/${group.id}`)}
                                             leftIcon={<ChatBubbleLeftRightIcon className="h-4 w-4" />}
                                         >
                                             Open Chat

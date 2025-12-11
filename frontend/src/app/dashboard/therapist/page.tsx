@@ -10,6 +10,7 @@ import {
     DocumentTextIcon,
     UserGroupIcon,
     ClockIcon,
+    CloudArrowUpIcon,
 } from '@heroicons/react/24/outline';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
@@ -261,6 +262,26 @@ export default function TherapistDashboard() {
                                 </Card>
                             </Link>
                         ))}
+                        {/* Document Management Quick Action */}
+                        <Link href="/dashboard/therapist/documents">
+                            <Card hover variant="default">
+                                <CardContent padding="md">
+                                    <div className="flex items-start gap-4">
+                                        <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center flex-shrink-0">
+                                            <CloudArrowUpIcon className="h-6 w-6 text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                Document Management
+                                            </h3>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                Upload and manage medical documents
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
                     </div>
                 </div>
 

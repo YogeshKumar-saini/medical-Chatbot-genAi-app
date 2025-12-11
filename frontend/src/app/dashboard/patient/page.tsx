@@ -96,6 +96,13 @@ export default function PatientDashboard() {
             href: '/dashboard/patient/community',
             color: 'from-pink-500 to-pink-600',
         },
+        {
+            name: 'Wellness',
+            description: 'Track mood & journal',
+            icon: HeartIcon,
+            href: '/dashboard/patient/wellness',
+            color: 'from-teal-500 to-teal-600',
+        },
     ];
 
     const upcomingAppointments = appointments

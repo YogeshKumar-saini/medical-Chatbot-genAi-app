@@ -517,6 +517,38 @@ async def get_organization_details(org_id: str, user: dict = Depends(authenticat
         }
     }
 
+@router.get("/organizations/me")
+async def get_my_organization(user: dict = Depends(authenticate)):
+    """
+    Get the organization that the current user (ORG_ADMIN) manages.
+    """
+    if user.get("role") != "ORG_ADMIN":
+        raise HTTPException(403, "Only Org Admins can access their organization")
+
+    # Get the full user document to access _id
+    email = user.get("email") or user.get("sub")
+    if not email:
+        raise HTTPException(400, "Email not found in authentication")
+
+    user_doc = await asyncio.to_thread(users_collection.find_one, {"email": email})
+    if not user_doc:
+        raise HTTPException(404, "User not found")
+
+    # Find the organization where this user is the admin
+    org = await asyncio.to_thread(orgs_collection.find_one, {"admin_id": str(user_doc["_id"])})
+    if not org:
+        raise HTTPException(404, "No organization found for this admin")
+
+    return {
+        "id": str(org["_id"]),
+        "name": org["name"],
+        "slug": org["slug"],
+        "description": org.get("description"),
+        "is_verified": org.get("is_verified", False),
+        "admin_id": org["admin_id"],
+        "created_at": org.get("created_at")
+    }
+
 @router.get("/organizations/{org_id}/members")
 async def get_organization_members(org_id: str, user: dict = Depends(authenticate)):
     """
