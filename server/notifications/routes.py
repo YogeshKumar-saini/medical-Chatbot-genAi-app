@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 
 router = APIRouter(tags=["Notifications"])
-notifications_collection = db["notifications"]
+notifications_collection = db["notifications"] if db is not None else None
 
 @router.get("/", response_description="List user notifications")
 async def list_notifications(limit: int = 20, unread_only: bool = False, user: dict = Depends(authenticate)):

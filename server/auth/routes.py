@@ -37,6 +37,10 @@ def hash_otp(otp: str) -> str:
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(req: SignupRequest, background_tasks: BackgroundTasks):
+    # Check database connection
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+
     # Check if user exists
     existing_user = await asyncio.to_thread(users_collection.find_one, {"email": req.email})
     if existing_user:
@@ -117,6 +121,9 @@ async def verify_email(req: VerifyRequest):
 @router.post("/login")
 async def login(req: LoginRequest): 
     # Note: Using custom LoginRequest instead of OAuth2PasswordRequestForm for JSON body support
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     user = await asyncio.to_thread(users_collection.find_one, {"email": req.email})
     
     if not user or not verify_password(req.password, user["password"]):
@@ -154,6 +161,9 @@ async def login(req: LoginRequest):
 # Also support OAuth2 form login for Swagger UI
 @router.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     user = await asyncio.to_thread(users_collection.find_one, {"email": form_data.username}) # username field in form is email
     
     if not user or not verify_password(form_data.password, user["password"]):

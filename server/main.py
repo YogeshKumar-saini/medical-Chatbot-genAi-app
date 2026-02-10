@@ -22,7 +22,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('medical_ai.log'),
         logging.StreamHandler()
     ]
 )
@@ -69,25 +68,26 @@ async def lifespan(app: FastAPI):
         logger.error(f"⚠️ Failed to ensure indexes: {e}")
 
     # Database connection test removed (test_connection does not exist)
-    try:
-        try:
-            from chat.chat_query import health_check, embed_model
-        except ImportError:
-            import sys
-            import os
-            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            from chat.chat_query import health_check, embed_model
-        health_status = await health_check()
-        if health_status.get("status") == "healthy":
-            logger.info("✅ Vector store and AI services ready")
-        else:
-            logger.warning("⚠️ Some AI services may not be fully operational")
-        # Optional model warmup
-        logger.info("🔥 Warming up AI models...")
-        await embed_model.embed_query("test query for warmup")
-        logger.info("✅ Models warmed up successfully")
-    except Exception as e:
-        logger.error(f"❌ Startup error: {e}")
+    # Startup health check temporarily disabled
+    # try:
+    #     try:
+    #         from chat.chat_query import health_check, embed_model
+    #     except ImportError:
+    #         import sys
+    #         import os
+    #         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    #         from chat.chat_query import health_check, embed_model
+    #     health_status = await health_check()
+    #     if health_status.get("status") == "healthy":
+    #         logger.info("✅ Vector store and AI services ready")
+    #     else:
+    #         logger.warning("⚠️ Some AI services may not be fully operational")
+    #     # Optional model warmup
+    #     logger.info("🔥 Warming up AI models...")
+    #     await embed_model.embed_query("test query for warmup")
+    #     logger.info("✅ Models warmed up successfully")
+    # except Exception as e:
+    #     logger.error(f"❌ Startup error: {e}")
     yield
     # Shutdown/Cleanup
     logger.info("🛑 Shutting down Medical AI Assistant Server")

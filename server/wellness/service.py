@@ -4,8 +4,8 @@ from config.db import db
 from bson import ObjectId
 from .models import MoodEntryCreate, JournalEntryCreate
 
-moods_collection = db["wellness_moods"]
-journal_collection = db["wellness_journal"]
+moods_collection = db["wellness_moods"] if db is not None else None
+journal_collection = db["wellness_journal"] if db is not None else None
 
 class WellnessService:
     @staticmethod

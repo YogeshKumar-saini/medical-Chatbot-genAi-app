@@ -11,8 +11,8 @@ from .models import EducationalContent, LibraryRecommendation, ContentType
 router = APIRouter()
 
 # Collections
-content_collection = db["library_content"]
-recommendations_collection = db["library_rec"]
+content_collection = db["library_content"] if db is not None else None
+recommendations_collection = db["library_rec"] if db is not None else None
 
 @router.get("/content", response_model=List[dict])
 async def get_library_content(

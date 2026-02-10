@@ -1,10 +1,10 @@
 from config.db import db
 
 # Initialize collections
-groups_collection = db["groups"]
-group_members_collection = db["group_members"]
-group_messages_collection = db["group_messages"]
-moderation_logs_collection = db["moderation_logs"]
+groups_collection = db["groups"] if db is not None else None
+group_members_collection = db["group_members"] if db is not None else None
+group_messages_collection = db["group_messages"] if db is not None else None
+moderation_logs_collection = db["moderation_logs"] if db is not None else None
 
 def create_indexes():
     """Create database indexes for optimal performance"""

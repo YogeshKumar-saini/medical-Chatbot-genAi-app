@@ -38,7 +38,7 @@ index = pc.Index(PINECONE_INDEX_NAME)
 # Optimized embedding model with caching
 class CachedEmbeddingModel:
     def __init__(self):
-        self.model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+        self.model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         self.cache = {}
         self.max_cache_size = 1000
     

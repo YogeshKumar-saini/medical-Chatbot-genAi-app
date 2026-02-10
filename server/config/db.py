@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from pathlib import Path
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("DB_NAME")

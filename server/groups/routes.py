@@ -30,6 +30,9 @@ router.add_websocket_route("/ws/{group_id}", websocket_routes.websocket_endpoint
 @router.get("/", response_model=GroupListResponse)
 async def list_user_groups(user: dict = Depends(authenticate)):
     """Get all groups the user is a member of"""
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     user_doc = await asyncio.to_thread(users_collection.find_one, {"email": user["email"]})
     user_id = str(user_doc["_id"])
     
@@ -43,6 +46,9 @@ async def list_user_groups(user: dict = Depends(authenticate)):
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_group(group_data: GroupCreate, user: dict = Depends(authenticate)):
     """Create a custom group"""
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     user_doc = await asyncio.to_thread(users_collection.find_one, {"email": user["email"]})
     creator_id = str(user_doc["_id"])
     

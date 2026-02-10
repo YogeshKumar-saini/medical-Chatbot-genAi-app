@@ -19,10 +19,13 @@ router = APIRouter()
 # Let's use a separate collection or just mix them? 
 # Mix is complex. Separate 'appointment_slots' collection is better.
 from config.db import db
-slots_collection = db["appointment_slots"]
+slots_collection = db["appointment_slots"] if db is not None else None
 
 @router.post("/slots", status_code=status.HTTP_201_CREATED)
 async def create_slots(slot_req: CreateSlotRequest, user: dict = Depends(authenticate)):
+    if slots_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     if user["role"] not in ["THERAPIST", "DOCTOR"]:
          raise HTTPException(status_code=403, detail="Only doctors can create slots")
 
@@ -44,6 +47,9 @@ async def create_slots(slot_req: CreateSlotRequest, user: dict = Depends(authent
 
 @router.get("/slots", response_model=List[dict])
 async def get_available_slots(doctor_id: Optional[str] = None):
+    if slots_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
     query = {"is_booked": False, "start_time": {"$gte": datetime.utcnow()}}
     if doctor_id:
         query["doctor_id"] = doctor_id

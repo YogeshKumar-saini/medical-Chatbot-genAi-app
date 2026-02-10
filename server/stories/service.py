@@ -8,7 +8,7 @@ from config.db import db
 
 logger = logging.getLogger(__name__)
 
-stories_collection = db["stories"]
+stories_collection = db["stories"] if db is not None else None
 
 # Create TTL index for auto-deletion
 try:

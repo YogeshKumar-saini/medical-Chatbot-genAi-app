@@ -9,8 +9,8 @@ from config.db import db
 logger = logging.getLogger(__name__)
 
 # Collections
-profiles_collection = db["user_profiles"]
-follows_collection = db["user_follows"]
+profiles_collection = db["user_profiles"] if db is not None else None
+follows_collection = db["user_follows"] if db is not None else None
 
 class ProfileService:
     """Service for user profile operations"""
