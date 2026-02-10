@@ -1,9 +1,7 @@
 /node_modules
-/.env
 # .DS_Store
 # /.vscode/
 /genai_env
-.env.local
 
 # /user_memory
 # /uploaded_docs
@@ -16,16 +14,12 @@ __pycache__/
 .Python
 
 # Virtual environment
-env/
 venv/
 .venv/
 ml_env/
 python_env/
 
 # Environment variables
-.env
-*.env
-
 # Logs
 *.log
 
@@ -33,3 +27,10 @@ python_env/
 .vscode/
 /Yogesh.ipynb
 /lab4
+
+# Environment variables
+.env
+server/.env
+frontend/.env*
+server/.env
+

@@ -1,0 +1,175 @@
+Medical AI Assistant - API Route Testing Results
+Test Date: Mon Feb  9 01:10:46 PM IST 2026
+========================================
+
+
+=== HEALTH & INFO ROUTES ===
+? UNKNOWN - GET / - Root endpoint (Status: 000)
+? UNKNOWN - GET /health - Basic health check (Status: 000)
+? UNKNOWN - GET /health/detailed - Detailed health check (Status: 000)
+? UNKNOWN - GET /api/v1/info - API information (Status: 000)
+? UNKNOWN - GET /metrics - Prometheus metrics (Status: 000)
+
+=== AUTHENTICATION ROUTES ===
+? UNKNOWN - POST /api/v1/auth/signup - User signup (Status: 000)
+? UNKNOWN - POST /api/v1/auth/login - User login (Status: 000)
+? UNKNOWN - POST /api/v1/auth/token - Get token (Status: 000)
+? UNKNOWN - GET /api/v1/auth/me - Get current user (Status: 000)
+? UNKNOWN - POST /api/v1/auth/verify-email - Verify email (Status: 000)
+? UNKNOWN - POST /api/v1/auth/forgot-password - Forgot password (Status: 000)
+? UNKNOWN - POST /api/v1/auth/reset-password - Reset password (Status: 000)
+? UNKNOWN - GET /api/v1/auth/debug-token - Debug token (Status: 000)
+
+=== CHAT ROUTES ===
+? UNKNOWN - POST /api/v1/chat/chat - Send chat message (Status: 000)
+? UNKNOWN - POST /api/v1/chat/chat/stream - Streaming chat (Status: 000)
+? UNKNOWN - GET /api/v1/chat/history - Get chat history (Status: 000)
+? UNKNOWN - DELETE /api/v1/chat/history - Clear chat history (Status: 000)
+? UNKNOWN - GET /api/v1/chat/suggestions - Get suggestions (Status: 000)
+? UNKNOWN - GET /api/v1/chat/followup - Get followup questions (Status: 000)
+? UNKNOWN - POST /api/v1/chat/analyze - Analyze conversation (Status: 000)
+? UNKNOWN - GET /api/v1/chat/health - Chat service health (Status: 000)
+? UNKNOWN - DELETE /api/v1/chat/memory - Clear memory (Status: 000)
+
+=== DOCUMENT ROUTES ===
+? UNKNOWN - POST /api/v1/docs/upload_docs - Upload document (Status: 000)
+? UNKNOWN - GET /api/v1/vector/stats - Vector store stats (Status: 000)
+
+=== APPOINTMENTS ROUTES ===
+? UNKNOWN - POST /api/v1/appointments/slots - Create appointment slot (Status: 000)
+? UNKNOWN - GET /api/v1/appointments/slots - Get available slots (Status: 000)
+? UNKNOWN - POST /api/v1/appointments/ - Book appointment (Status: 000)
+? UNKNOWN - GET /api/v1/appointments/ - List appointments (Status: 000)
+? UNKNOWN - PUT /api/v1/appointments/dummy-id - Update appointment (Status: 000)
+? UNKNOWN - GET /api/v1/appointments/dummy-id/join - Join appointment (Status: 000)
+? UNKNOWN - POST /api/v1/appointments/dummy-id/prescribe - Create prescription (Status: 000)
+? UNKNOWN - GET /api/v1/appointments/dummy-id/prescriptions - Get prescriptions (Status: 000)
+
+=== GROUPS ROUTES ===
+? UNKNOWN - POST /api/v1/groups/ - Create group (Status: 000)
+? UNKNOWN - GET /api/v1/groups/ - List groups (Status: 000)
+? UNKNOWN - GET /api/v1/groups/dummy-id - Get group details (Status: 000)
+? UNKNOWN - DELETE /api/v1/groups/dummy-id - Delete group (Status: 000)
+? UNKNOWN - PUT /api/v1/groups/dummy-id/settings - Update group settings (Status: 000)
+? UNKNOWN - GET /api/v1/groups/dummy-id/members - Get group members (Status: 000)
+? UNKNOWN - POST /api/v1/groups/dummy-id/members/user-id - Add member (Status: 000)
+? UNKNOWN - DELETE /api/v1/groups/dummy-id/members/user-id - Remove member (Status: 000)
+? UNKNOWN - PUT /api/v1/groups/dummy-id/members/user-id/ban - Ban member (Status: 000)
+? UNKNOWN - PUT /api/v1/groups/dummy-id/members/user-id/unban - Unban member (Status: 000)
+? UNKNOWN - GET /api/v1/groups/dummy-id/messages - Get messages (Status: 000)
+? UNKNOWN - POST /api/v1/groups/dummy-id/messages - Send message (Status: 000)
+? UNKNOWN - PUT /api/v1/groups/dummy-id/messages/msg-id - Edit message (Status: 000)
+? UNKNOWN - DELETE /api/v1/groups/dummy-id/messages/msg-id - Delete message (Status: 000)
+? UNKNOWN - POST /api/v1/groups/dummy-id/messages/msg-id/react - React to message (Status: 000)
+? UNKNOWN - DELETE /api/v1/groups/dummy-id/messages/msg-id/react - Remove reaction (Status: 000)
+? UNKNOWN - GET /api/v1/groups/dummy-id/moderation-logs - Get moderation logs (Status: 000)
+
+=== LIBRARY ROUTES ===
+? UNKNOWN - GET /api/v1/library/content - Get library content (Status: 000)
+? UNKNOWN - POST /api/v1/library/content - Add content (Status: 000)
+? UNKNOWN - POST /api/v1/library/recommend - Recommend content (Status: 000)
+? UNKNOWN - GET /api/v1/library/my-recommendations - Get my recommendations (Status: 000)
+? UNKNOWN - GET /api/v1/library/quiz/content-id - Get quiz (Status: 000)
+? UNKNOWN - POST /api/v1/library/quiz/content-id/submit - Submit quiz (Status: 000)
+
+=== WELLNESS ROUTES ===
+? UNKNOWN - POST /api/v1/wellness/mood - Log mood (Status: 000)
+? UNKNOWN - GET /api/v1/wellness/mood/history - Get mood history (Status: 000)
+? UNKNOWN - POST /api/v1/wellness/journal - Create journal entry (Status: 000)
+? UNKNOWN - GET /api/v1/wellness/journal - Get journal entries (Status: 000)
+? UNKNOWN - DELETE /api/v1/wellness/journal/entry-id - Delete journal entry (Status: 000)
+
+=== STORIES ROUTES ===
+? UNKNOWN - POST /api/v1/stories/ - Create story (Status: 000)
+? UNKNOWN - GET /api/v1/stories/ - Get stories feed (Status: 000)
+? UNKNOWN - GET /api/v1/stories/user-id - Get user stories (Status: 000)
+? UNKNOWN - POST /api/v1/stories/story-id/view - View story (Status: 000)
+? UNKNOWN - DELETE /api/v1/stories/story-id - Delete story (Status: 000)
+
+=== PROFILES ROUTES ===
+? UNKNOWN - GET /api/v1/profiles/user-id - Get user profile (Status: 000)
+? UNKNOWN - PUT /api/v1/profiles/me - Update my profile (Status: 000)
+? UNKNOWN - POST /api/v1/profiles/me/avatar - Upload avatar (Status: 000)
+? UNKNOWN - POST /api/v1/profiles/user-id/follow - Follow user (Status: 000)
+? UNKNOWN - DELETE /api/v1/profiles/user-id/follow - Unfollow user (Status: 000)
+? UNKNOWN - GET /api/v1/profiles/user-id/followers - Get followers (Status: 000)
+? UNKNOWN - GET /api/v1/profiles/user-id/following - Get following (Status: 000)
+
+=== CLINICAL ROUTES ===
+? UNKNOWN - POST /api/v1/clinical/notes - Create clinical note (Status: 000)
+? UNKNOWN - GET /api/v1/clinical/notes/patient-id - Get clinical notes (Status: 000)
+? UNKNOWN - POST /api/v1/clinical/prescriptions - Create prescription (Status: 000)
+? UNKNOWN - GET /api/v1/clinical/prescriptions/patient-id - Get prescriptions (Status: 000)
+? UNKNOWN - GET /api/v1/clinical/patients/patient-id - Get patient records (Status: 000)
+
+=== ANALYTICS ROUTES ===
+? UNKNOWN - GET /api/v1/analytics/stats - Get system statistics (Status: 000)
+? UNKNOWN - GET /api/v1/analytics/logs - Get analytics logs (Status: 000)
+? UNKNOWN - GET /api/v1/analytics/clinical/summary/patient-id - Get clinical summary (Status: 000)
+? UNKNOWN - GET /api/v1/analytics/clinical/trends - Get clinical trends (Status: 000)
+? UNKNOWN - GET /api/v1/analytics/clinical/success - Get success metrics (Status: 000)
+? UNKNOWN - POST /api/v1/analytics/clinical/analyze-risk - Analyze risk (Status: 000)
+
+=== ADMIN ROUTES ===
+? UNKNOWN - GET /api/v1/admin/users - List users (Status: 000)
+? UNKNOWN - POST /api/v1/admin/users - Create user (Status: 000)
+? UNKNOWN - GET /api/v1/admin/users/user-id - Get user (Status: 000)
+? UNKNOWN - PUT /api/v1/admin/users/user-id - Update user (Status: 000)
+? UNKNOWN - DELETE /api/v1/admin/users/user-id - Delete user (Status: 000)
+? UNKNOWN - PUT /api/v1/admin/users/user-id/role - Update user role (Status: 000)
+? UNKNOWN - GET /api/v1/admin/users/lookup - Lookup user (Status: 000)
+? UNKNOWN - GET /api/v1/admin/doctors/doctor-id - Get doctor details (Status: 000)
+? UNKNOWN - GET /api/v1/admin/organizations/me - Get my organization (Status: 000)
+? UNKNOWN - GET /api/v1/admin/organizations/org-id/details - Get org details (Status: 000)
+? UNKNOWN - GET /api/v1/admin/organizations/org-id/members - Get org members (Status: 000)
+? UNKNOWN - DELETE /api/v1/admin/organizations/org-id - Delete organization (Status: 000)
+? UNKNOWN - PUT /api/v1/admin/organizations/org-id/transfer-ownership - Transfer ownership (Status: 000)
+? UNKNOWN - GET /api/v1/admin/requests/delete - Get delete requests (Status: 000)
+? UNKNOWN - POST /api/v1/admin/requests/delete/req-id/approve - Approve delete request (Status: 000)
+? UNKNOWN - POST /api/v1/admin/requests/delete/req-id/reject - Reject delete request (Status: 000)
+? UNKNOWN - GET /api/v1/admin/logs/system - Get system logs (Status: 000)
+
+=== ONBOARDING ROUTES ===
+? UNKNOWN - GET /api/v1/onboarding/status - Get onboarding status (Status: 000)
+? UNKNOWN - POST /api/v1/onboarding/patient/profile - Create patient profile (Status: 000)
+? UNKNOWN - POST /api/v1/onboarding/doctor/profile - Create doctor profile (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/doctor/links - Get doctor links (Status: 000)
+? UNKNOWN - POST /api/v1/onboarding/links/request - Request link (Status: 000)
+? UNKNOWN - PUT /api/v1/onboarding/links/link-id/status - Update link status (Status: 000)
+? UNKNOWN - POST /api/v1/onboarding/organizations - Create organization (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/organizations - List organizations (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/organizations/me - Get my organization (Status: 000)
+? UNKNOWN - PUT /api/v1/onboarding/organizations/me - Update my organization (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/organizations/org-id/doctors - Get org doctors (Status: 000)
+? UNKNOWN - PUT /api/v1/onboarding/admin/organizations/org-id/verify - Verify organization (Status: 000)
+? UNKNOWN - POST /api/v1/onboarding/org/invite - Invite to organization (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/org/doctor-requests - Get doctor requests (Status: 000)
+? UNKNOWN - PUT /api/v1/onboarding/org/doctor-requests/doc-id/status - Update doctor request (Status: 000)
+? UNKNOWN - GET /api/v1/onboarding/org/pending-patients - Get pending patients (Status: 000)
+? UNKNOWN - PUT /api/v1/onboarding/org/approve-patient/patient-id - Approve patient (Status: 000)
+
+=== MEDIA ROUTES ===
+? UNKNOWN - POST /api/v1/media/upload - Upload media (Status: 000)
+? UNKNOWN - GET /api/v1/media/images/file.jpg - Get image (Status: 000)
+? UNKNOWN - DELETE /api/v1/media/images/file.jpg - Delete media (Status: 000)
+? UNKNOWN - GET /api/v1/media/images/thumbnails/file.jpg - Get thumbnail (Status: 000)
+? UNKNOWN - GET /api/v1/media/groups/group-id/gallery - Get group gallery (Status: 000)
+
+=== NOTIFICATIONS ROUTES ===
+? UNKNOWN - GET /api/v1/notifications/ - List notifications (Status: 000)
+? UNKNOWN - PUT /api/v1/notifications/notif-id/read - Mark as read (Status: 000)
+
+========================================
+SUMMARY
+========================================
+Total Routes Tested: 
+✓ Passed: 0
+0
+⚠ Auth Required: 0
+0
+⚠ Not Found (404): 0
+0
+⚠ Validation Errors: 0
+0
+✗ Failed: 0
+0

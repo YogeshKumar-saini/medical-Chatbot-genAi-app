@@ -1,20 +1,24 @@
 # chat/routes.py - Optimized chat endpoints
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, BackgroundTasks, status
 from fastapi.responses import StreamingResponse
 import json
 import asyncio
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from auth.routes import authenticate
-from chat.chat_query import answer_query, get_suggested_queries, health_check
+from chat.chat_query import answer_query, answer_query_stream_with_memory, get_suggested_queries, health_check, get_conversation_memory
+from chat.models import CreateChatRequest, Message, ChatSession
+from config.db import chats_collection
+from .rate_limiter import ChatRateLimiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Chat"])
 
-# Initialize session manager and rate limiter
+# Initialize rate limiter
+rate_limiter = ChatRateLimiter(max_requests=30, window_seconds=60)
 
 def get_client_ip(request: Request) -> str:
     """Get client IP for rate limiting"""
@@ -22,6 +26,30 @@ def get_client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host
+
+async def save_message_to_db(user_id: str, message: Message):
+    """Save message to user's chat session"""
+    if chats_collection is None:
+        logger.warning("Chat collection not available")
+        return
+
+    try:
+        # Update existing session or create new one
+        result = await asyncio.to_thread(
+            chats_collection.update_one,
+            {"user_id": user_id},
+            {
+                "$push": {"messages": message.dict()},
+                "$set": {"updated_at": datetime.utcnow()},
+                "$setOnInsert": {
+                    "created_at": datetime.utcnow(),
+                    "title": "New Chat"
+                }
+            },
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to save message: {e}")
 
 @router.post("/chat")
 async def chat_endpoint(
@@ -31,32 +59,38 @@ async def chat_endpoint(
     user: dict = Depends(authenticate)
 ):
     """
-    Main chat endpoint with optimization and rate limiting
+    Main chat endpoint with persistent storage
     """
     client_ip = get_client_ip(request)
-    user_id = user["username"]
+    user_id = user["email"]
     
     # Rate limiting check
-    # Rate limiting removed
-    # Rate limiting removed
+    is_limited, reset_time = await rate_limiter.is_rate_limited(user_id)
+    if is_limited:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded. Try again in {reset_time} seconds"
+        )
+    
+    await rate_limiter.record_request(user_id)
     
     try:
-        # Record request for rate limiting
-    # Rate limiting removed
+        # Save User Message
+        user_msg = Message(role="user", content=message)
+        await save_message_to_db(user_id, user_msg)
         
-        # Get user session
-    # Session management removed
-        
-        # Add user message to session
-    # Session management removed
-        
-        # Process query with context from session
+        # Process Query
         response = await answer_query(message, user["role"])
         
-        # Add AI response to session
-    # Session management removed
+        # Save AI Response
+        ai_msg = Message(
+            role="assistant", 
+            content=response["answer"],
+            sources=response.get("sources", [])
+        )
+        await save_message_to_db(user_id, ai_msg)
         
-        # Log interaction for analytics (background task)
+        # Log interaction (Background)
         background_tasks.add_task(
             log_chat_interaction,
             user_id=user_id,
@@ -80,68 +114,182 @@ async def chat_endpoint(
             detail="Chat service temporarily unavailable"
         )
 
-@router.post("/stream")
-async def chat_stream(
+@router.post("/chat/stream")
+async def chat_stream_endpoint(
     request: Request,
+    background_tasks: BackgroundTasks,
     message: str = Form(..., min_length=1, max_length=1000),
     user: dict = Depends(authenticate)
 ):
     """
-    Streaming chat endpoint for real-time responses
+    Streaming chat endpoint that returns responses in real-time chunks
     """
     client_ip = get_client_ip(request)
-    user_id = user["username"]
-    
-    # Rate limiting
-    # Rate limiting removed
-        # Rate limiting removed
-    
-    async def generate_response():
-        try:
-            # Rate limiting removed
-            
-            # Yield status updates
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Processing your question...'})}\n\n"
-            
-            # Get response
-            response = await answer_query(message, user["role"])
-            
-            # Stream the response in chunks
-            answer_chunks = response["answer"].split(". ")
-            for i, chunk in enumerate(answer_chunks):
-                if chunk.strip():
-                    chunk_data = {
-                        "type": "chunk",
-                        "content": chunk + (". " if i < len(answer_chunks) - 1 else ""),
-                        "chunk_index": i
-                    }
-                    yield f"data: {json.dumps(chunk_data)}\n\n"
-                    await asyncio.sleep(0.1)  # Small delay for streaming effect
-            
-            # Send final metadata
-            final_data = {
-                "type": "complete",
-                "sources": response.get("sources", []),
-                "response_type": response.get("type", "unknown")
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
-            
-        except Exception as e:
-            error_data = {
-                "type": "error",
-                "message": "Failed to process your request"
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
-    
-    return StreamingResponse(
-        generate_response(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*"
+    user_id = user["email"]
+
+    # Rate limiting check
+    is_limited, reset_time = await rate_limiter.is_rate_limited(user_id)
+    if is_limited:
+        async def rate_limit_generator():
+            yield f"Rate limit exceeded. Try again in {reset_time} seconds"
+        return StreamingResponse(
+            rate_limit_generator(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}
+        )
+
+    await rate_limiter.record_request(user_id)
+
+    try:
+        # Save User Message
+        user_msg = Message(role="user", content=message)
+        await save_message_to_db(user_id, user_msg)
+
+        # Start streaming response
+        async def generate_response():
+            full_response = ""
+            try:
+                async for chunk in answer_query_stream_with_memory(message, user["role"], user_id):
+                    full_response += chunk
+                    yield chunk
+
+                # Save complete AI Response after streaming
+                ai_msg = Message(
+                    role="assistant",
+                    content=full_response,
+                    sources=["Streaming Response"]  # Could be enhanced to extract sources
+                )
+                await save_message_to_db(user_id, ai_msg)
+
+                # Log interaction (Background)
+                background_tasks.add_task(
+                    log_chat_interaction,
+                    user_id=user_id,
+                    user_role=user["role"],
+                    message=message,
+                    response_type="streaming",
+                    sources_count=1
+                )
+
+            except Exception as e:
+                logger.error(f"Streaming error for user {user_id}: {str(e)}")
+                yield f"\n\nError: {str(e)}"
+
+        return StreamingResponse(
+            generate_response(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}  # Disable nginx buffering
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Stream setup error for user {user_id}: {str(e)}")
+        async def error_generator():
+            yield "Chat service temporarily unavailable"
+        return StreamingResponse(
+            error_generator(),
+            media_type="text/plain",
+            headers={"X-Accel-Buffering": "no"}
+        )
+
+@router.get("/history")
+async def get_chat_history(
+    limit: int = 50,
+    user: dict = Depends(authenticate)
+):
+    """
+    Get user's persistent chat history
+    """
+    try:
+        if chats_collection is None:
+             return {"messages": []}
+
+        session = await asyncio.to_thread(
+            chats_collection.find_one,
+            {"user_id": user["email"]},
+            {"messages": {"$slice": -limit}} # Get last N messages
+        )
+        
+        if session:
+            return {"messages": session.get("messages", [])}
+        return {"messages": []}
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch history: {e}")
+        return {"messages": []}
+
+@router.delete("/history")
+async def clear_chat_history(user: dict = Depends(authenticate)):
+    """
+    Clear user's persistent chat history
+    """
+    try:
+        if chats_collection is not None:
+            await asyncio.to_thread(
+                chats_collection.update_one,
+                {"user_id": user["email"]},
+                {"$set": {"messages": [], "updated_at": datetime.utcnow()}}
+            )
+        return {"message": "Chat history cleared successfully"}
+    except Exception as e:
+        logger.error(f"Failed to clear history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear history")
+
+@router.delete("/memory")
+async def clear_conversation_memory(user: dict = Depends(authenticate)):
+    """
+    Clear user's conversation memory (for contextual chat)
+    """
+    try:
+        memory = get_conversation_memory(user["email"])
+        memory.clear()
+        return {"message": "Conversation memory cleared successfully"}
+    except Exception as e:
+        logger.error(f"Failed to clear memory: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear conversation memory")
+
+@router.get("/followup")
+async def get_followup_suggestions(user: dict = Depends(authenticate)):
+    """
+    Get contextual follow-up question suggestions based on conversation history
+    """
+    try:
+        memory = get_conversation_memory(user["email"])
+        suggestions = getattr(memory, 'followup_suggestions', [])
+
+        # Fallback to general suggestions if no contextual ones
+        if not suggestions:
+            base_suggestions = get_suggested_queries()
+            suggestions = base_suggestions[:3]
+
+        return {
+            "suggestions": suggestions,
+            "contextual": len(getattr(memory, 'followup_suggestions', [])) > 0
         }
-    )
+    except Exception as e:
+        logger.error(f"Failed to get follow-up suggestions: {e}")
+        return {"suggestions": [], "contextual": False}
+
+# ... Remaining endpoints (suggestions, analytics, health, stream) kept largely same but without session manager dependency ...
+
+# Background task for logging
+async def log_chat_interaction(
+    user_id: str,
+    user_role: str,
+    message: str,
+    response_type: str,
+    sources_count: int
+):
+    """
+    Log chat interaction for analytics (background task)
+    """
+    try:
+        # Here you could save to a dedicated analytics collection if needed
+        # For now, we just log to console
+        logger.info(f"Chat interaction logged for user {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to log interaction: {e}")
 
 @router.get("/suggestions")
 async def get_chat_suggestions(user: dict = Depends(authenticate)):
@@ -182,27 +330,8 @@ async def get_chat_suggestions(user: dict = Depends(authenticate)):
         }
         
     except Exception as e:
-        logger.error(f"Error getting suggestions for user {user['username']}: {e}")
+        logger.error(f"Error getting suggestions for user {user['email']}: {e}")
         return {"suggested_queries": [], "personalized": False}
-
-@router.get("/history")
-async def get_chat_history(
-    limit: int = 20,
-    user: dict = Depends(authenticate)
-):
-    """
-    Get user's chat history
-    """
-    # Session management removed
-    return {"messages": []}
-
-@router.delete("/history")
-async def clear_chat_history(user: dict = Depends(authenticate)):
-    """
-    Clear user's chat history
-    """
-    # Session management removed
-    return {"message": "Chat history cleared successfully"}
 
 @router.get("/health")
 async def chat_health_check():
@@ -223,185 +352,49 @@ async def chat_health_check():
             detail="Chat service unhealthy"
         )
 
-@router.get("/analytics")
-async def get_chat_analytics(user: dict = Depends(authenticate)):
-    """
-    Get user's chat analytics (admin only for global stats)
-    """
-    # Analytics removed
-    return {"analytics": {}}
+from fastapi import UploadFile, File
 
-# Background task for logging
-async def log_chat_interaction(
-    user_id: str,
-    user_role: str,
-    message: str,
-    response_type: str,
-    sources_count: int
+from chat.multimodal import analyze_medical_image
+
+@router.post("/analyze")
+async def analyze_image_endpoint(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    prompt: Optional[str] = Form("Analyze this medical image and describe findings."),
+    user: dict = Depends(authenticate)
 ):
     """
-    Log chat interaction for analytics (background task)
+    Analyze uploaded medical image using Gemini Vision
     """
     try:
-        log_data = {
-            "timestamp": datetime.utcnow(),
-            "user_id": user_id,
-            "user_role": user_role,
-            "message_length": len(message),
-            "response_type": response_type,
-            "sources_count": sources_count
+        # Validate file type
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(400, "Invalid file type. Please upload an image.")
+        
+        # Read file
+        content = await file.read()
+        
+        # Analyze
+        analysis = await analyze_medical_image(content, file.content_type, prompt)
+        
+        # Save interaction
+        user_msg = Message(role="user", content=f"[Image Analysis] {prompt}")
+        await save_message_to_db(user["email"], user_msg)
+        
+        ai_msg = Message(
+            role="assistant", 
+            content=analysis,
+            sources=["Gemini Vision Analysis"]
+        )
+        await save_message_to_db(user["email"], ai_msg)
+        
+        return {
+            "analysis": analysis,
+            "type": "image_analysis"
         }
         
-        # Here you could save to a dedicated analytics database
-        logger.info(f"Chat interaction logged for user {user_id}")
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to log interaction: {e}")
-
-# chat/session_manager.py - Session management for chat
-import time
-import uuid
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-from collections import defaultdict
-import threading
-
-class ChatSessionManager:
-    """
-    Thread-safe session manager for chat conversations
-    """
-    
-    def __init__(self, session_timeout: int = 3600):  # 1 hour timeout
-        self.sessions: Dict[str, Dict] = {}
-        self.session_timeout = session_timeout
-        self.lock = threading.RLock()
-        self.cleanup_interval = 300  # 5 minutes
-        self.last_cleanup = time.time()
-    
-    def _cleanup_expired_sessions(self):
-        """Remove expired sessions"""
-        if time.time() - self.last_cleanup < self.cleanup_interval:
-            return
-        
-        current_time = time.time()
-        expired_users = []
-        
-        with self.lock:
-            for user_id, session in self.sessions.items():
-                if current_time - session["last_activity"] > self.session_timeout:
-                    expired_users.append(user_id)
-            
-            for user_id in expired_users:
-                del self.sessions[user_id]
-            
-            self.last_cleanup = current_time
-        
-        if expired_users:
-            logger.info(f"Cleaned up {len(expired_users)} expired chat sessions")
-    
-    def get_or_create_session(self, user_id: str, user_role: str) -> Dict:
-        """Get existing session or create new one"""
-        self._cleanup_expired_sessions()
-        
-        with self.lock:
-            if user_id not in self.sessions:
-                self.sessions[user_id] = {
-                    "session_id": str(uuid.uuid4()),
-                    "user_id": user_id,
-                    "user_role": user_role,
-                    "messages": [],
-                    "created_at": datetime.utcnow().isoformat(),
-                    "last_activity": time.time()
-                }
-            else:
-                self.sessions[user_id]["last_activity"] = time.time()
-            
-            return self.sessions[user_id].copy()
-    
-    def get_session(self, user_id: str) -> Optional[Dict]:
-        """Get existing session"""
-        self._cleanup_expired_sessions()
-        
-        with self.lock:
-            session = self.sessions.get(user_id)
-            if session:
-                session["last_activity"] = time.time()
-                return session.copy()
-            return None
-    
-    def add_message(self, user_id: str, role: str, content: str, sources: Optional[List] = None):
-        """Add message to session"""
-        with self.lock:
-            if user_id in self.sessions:
-                message = {
-                    "role": role,
-                    "content": content,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "sources": sources or []
-                }
-                self.sessions[user_id]["messages"].append(message)
-                self.sessions[user_id]["last_activity"] = time.time()
-                
-                # Limit message history to prevent memory issues
-                if len(self.sessions[user_id]["messages"]) > 100:
-                    self.sessions[user_id]["messages"] = self.sessions[user_id]["messages"][-50:]
-    
-    def clear_session(self, user_id: str):
-        """Clear user session"""
-        with self.lock:
-            if user_id in self.sessions:
-                del self.sessions[user_id]
-    
-    def get_global_stats(self) -> Dict:
-        """Get global session statistics"""
-        with self.lock:
-            active_sessions = len(self.sessions)
-            total_messages = sum(len(session["messages"]) for session in self.sessions.values())
-            
-            role_distribution = defaultdict(int)
-            for session in self.sessions.values():
-                role_distribution[session["user_role"]] += 1
-            
-            return {
-                "active_sessions": active_sessions,
-                "total_messages": total_messages,
-                "role_distribution": dict(role_distribution),
-                "cleanup_stats": {
-                    "last_cleanup": self.last_cleanup,
-                    "cleanup_interval": self.cleanup_interval
-                }
-            }
-
-# chat/rate_limiter.py - Rate limiting for chat
-import time
-from collections import defaultdict, deque
-from typing import Tuple
-
-class ChatRateLimiter:
-    """Rate limiter specifically for chat endpoints"""
-    
-    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests: defaultdict = defaultdict(deque)
-    
-    def is_rate_limited(self, identifier: str) -> Tuple[bool, int]:
-        """Check if identifier is rate limited"""
-        current_time = time.time()
-        user_requests = self.requests[identifier]
-        
-        # Remove old requests outside the window
-        while user_requests and user_requests[0] <= current_time - self.window_seconds:
-            user_requests.popleft()
-        
-        if len(user_requests) >= self.max_requests:
-            oldest_request = user_requests[0]
-            seconds_until_reset = int(self.window_seconds - (current_time - oldest_request))
-            return True, max(0, seconds_until_reset)
-        
-        return False, 0
-    
-    def record_request(self, identifier: str):
-        """Record a request"""
-        current_time = time.time()
-        self.requests[identifier].append(current_time)
+        logger.error(f"Analysis failed: {e}")
+        raise HTTPException(500, f"Image analysis failed: {str(e)}")
